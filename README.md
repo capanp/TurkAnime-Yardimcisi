@@ -1,4 +1,4 @@
-# Ne İşe Yarar?
+## Ne İşe Yarar?
 - Sizi uğraştırmadan içeriği seçer.
 - Kaydedilmiş çevirmenleri sırasına göre seçer.
 - Kaydedilmiş oynatıcıları sırasına göre seçip başlatma.
