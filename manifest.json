@@ -1,0 +1,28 @@
+{
+    "manifest_version": 3,
+    "name": "TraSkipper",
+    "description": "Description template.",
+    "version": "0.1",
+    "icons": {
+        "16":"/icons/16px.png",
+        "48":"/icons/48px.png",
+        "128":"/icons/128px.png"
+    },
+    "action": {
+      "default_popup": "index.html",
+      "default_icon": {
+        "16":"/icons/16px.png",
+        "48":"/icons/48px.png",
+        "128":"/icons/128px.png"
+        }
+    },
+    "content_scripts": [
+        {
+            "matches": ["https://www.turkanime.co/*"],
+            "css": ["main.css"],
+			"js": [
+                "inject.js"
+        ]
+        }
+    ]
+}

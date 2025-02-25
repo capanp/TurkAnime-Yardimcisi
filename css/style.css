@@ -1,0 +1,138 @@
+body {
+	background-color: rgb(49, 51, 59);
+	margin: 0;
+}
+
+#divHeader {
+	height: 50px;
+	width: 250px;
+	border-radius: 10px;
+	border-bottom: 3px solid #a2c2d091;
+
+	border-top-left-radius: 0;
+	border-top-right-radius: 0;
+
+	background-color: rgb(23, 25, 31);
+	color: #c5c8ce;
+
+	display: flex;
+    justify-content: center;
+    align-items: center;
+
+	font-family: 'Roboto', sans-serif;
+	font-size: 200%;
+
+	box-shadow: black 0px 0px 15px;
+}
+
+#divBackgroundColor {
+	height: 70px;
+	width: 240px;
+	border-radius: 20px 20px 10px 10px;
+	margin:  20px 5px 20px 5px;
+
+	background-color: #a2c2d091;
+}
+
+#divMenu {
+	height: 50px;
+	width: 240px;
+	border-radius: 15px;
+
+	background: rgb(23, 25, 31);
+	box-shadow: rgba(0, 0, 0, 0.548) 0px 5px 8px;
+}
+
+#divText {
+	display: flex;
+	height: 100%;
+
+	color: #c5c8ce;
+	font-family: 'Roboto', sans-serif;
+	font-size: 100%;
+	font-weight: 500;
+
+	justify-content: center;
+	align-items: center;
+}
+
+#buttonSourceCode {
+	display: inline-block;
+	height: 20px;
+	width: 118px;
+
+	border: 0;
+	border-radius: 0 0 0 8px;
+
+	background: url("https://cdn.discordapp.com/attachments/1024349498140536852/1106558740355895377/icons8-info-32.png") no-repeat scroll 0 0 transparent;
+	background-position: center center;
+	background-size: 20px;
+
+	-moz-transition: background-color .2s ease-in;
+    -o-transition: background-color .2s ease-in;
+    -webkit-transition: background-color .2s ease-in;
+    transition: background-color .2s ease-in;
+}
+
+#buttonSourceCode:hover {
+	background-color: #a2c2d03f;
+}
+
+#buttonSourceCode:active {
+	background-color: #a2c2d077;
+}
+#buttonInfo {
+	display: inline-block;
+	height: 20px;
+	width: 118px;
+
+	border: 0;
+	border-radius: 0 0 8px 0;
+
+	background: url("https://cdn.discordapp.com/attachments/1024349498140536852/1106566637051715604/icons8-github-30.png") no-repeat scroll 0 0 transparent;
+	background-position: center center;
+	background-size: 20px;
+
+	-moz-transition: background-color .2s ease-in;
+    -o-transition: background-color .2s ease-in;
+    -webkit-transition: background-color .2s ease-in;
+    transition: background-color .2s ease-in;
+}
+
+#buttonInfo:hover {
+	background-color: #a2c2d03f;
+}
+
+#buttonInfo:active {
+	background-color: #a2c2d077;
+}
+
+#divGif {
+	height: 50px;
+	width: 250px;
+	border-radius: 10px;
+
+	background-color: rgb(23, 25, 31);
+	background: url("https://cdn.discordapp.com/attachments/1024349498140536852/1106576853906501632/cc1bf4185fb1b3b2760ce92457f232d5.gif");
+	background-repeat: no-repeat;
+	
+	background-size: 250px 130px;
+	background-position-y: -70px;
+
+	border-bottom-left-radius: 0;
+	border-bottom-right-radius: 0;
+
+	box-shadow: black 0px 0px 15px;
+}
+
+#versionText {
+	display: flex;
+	width: 240px;
+	color: #c5c8ce;
+	justify-content: flex-end;
+	margin: 0 0 3px 0;
+
+	font-family: 'Roboto', sans-serif;
+	font-size: 80%;
+	font-weight: 400;
+}
