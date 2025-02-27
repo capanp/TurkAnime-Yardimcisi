@@ -1,24 +1,75 @@
 <!doctype html>
 <html>
-<head>
-	<meta charset="utf-8">
-	<title>Denme</title>
-    <link href="css/style.css" rel="stylesheet" type="text/css">
-</head>
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<meta name="color-scheme" content="dark">
+		<meta charset="utf-8">
 
-<body>
-	<link rel="preconnect" href="https://fonts.googleapis.com">
-	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-	<link href="https://fonts.googleapis.com/css2?family=Roboto:ital@1&display=swap" rel="stylesheet">
-	<div name = "divHeader" id = "divHeader">Ana Menü</div>
-	<div  name = "divBackgroundColor" id = "divBackgroundColor">
-		<div name = "divMenu" id = "divMenu">
-			<a id= "divText">Her şey düzgün gözüküyor.</a>
-			<a id = "buttonSourceCode" href = "https://github.com/thescrayx/TrAHelper" target = "_blank"></a>
-			<a id = "buttonInfo" href = "https://steamcommunity.com/id/capansj/" target = "_blank"></a>
+		<title>TürkAnime Yardımcısı</title>
+
+		<link href="css/style.css" rel="stylesheet" type="text/css">
+	</head>
+
+	<body>
+		<div class="header">
+			<div class="topText">
+				<img src="./icons/icon.png" alt="Logo" height="24px" width="24px">
+				Türk Anime Yardımcısı
+			</div>
+			<div class="github">
+				<a class="gh" href="https://github.com/capanp/TurkAnime-Yardimcisi" target="_blank">
+					<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor"
+						class="bi bi-github animated animatedFadeInUp fadeInUp" viewBox="0 0 16 16">
+						<defs>
+							<linearGradient id="grad-1" x1="0%" y1="0%" x2="100%" y2="100%">
+								<stop offset="25%" style="stop-color: #43a8c9; stop-opacity: 1" />
+								<stop offset="100%" style="stop-color: white; stop-opacity: 1" />
+							</linearGradient>
+						</defs>
+						<path fill="url(#grad-1)"
+							d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8" />
+					</svg>
+				</a>
+			</div>
 		</div>
-	</div>
-	<a id = "versionText">Beta 0.7.3</a>
-	<div id = "divGif" name = "divGif"></div>
-</body>
+
+		<div class="main-des">
+			<p>Bu uzantı, gelecekte büyük Türk Anime izleme platformlarının çoğunu destekleyecek şu an aşşağıdaki platformları destekliyor.</p>
+		</div>
+
+		<div class="platform-div">
+			<ul>
+				<li style="margin-bottom: 10px;">
+					<a href="https://www.turkanime.co/" target="_blank">Turkanime</a>
+					<svg style="margin-left: 5px;" xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" class="bi bi-box-arrow-up-left" viewBox="0 0 16 16">
+						<path fill-rule="evenodd" d="M7.364 3.5a.5.5 0 0 1 .5-.5H14.5A1.5 1.5 0 0 1 16 4.5v10a1.5 1.5 0 0 1-1.5 1.5h-10A1.5 1.5 0 0 1 3 14.5V7.864a.5.5 0 1 1 1 0V14.5a.5.5 0 0 0 .5.5h10a.5.5 0 0 0 .5-.5v-10a.5.5 0 0 0-.5-.5H7.864a.5.5 0 0 1-.5-.5"/>
+						<path fill-rule="evenodd" d="M0 .5A.5.5 0 0 1 .5 0h5a.5.5 0 0 1 0 1H1.707l8.147 8.146a.5.5 0 0 1-.708.708L1 1.707V5.5a.5.5 0 0 1-1 0z"/>
+					</svg>
+				</li>
+				<li class="pending" style="margin-bottom: 10px;">
+					<svg style="margin-right: 5px;" xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" class="bi bi-stopwatch" viewBox="0 0 16 16">
+						<path d="M8.5 5.6a.5.5 0 1 0-1 0v2.9h-3a.5.5 0 0 0 0 1H8a.5.5 0 0 0 .5-.5z"/>
+						<path d="M6.5 1A.5.5 0 0 1 7 .5h2a.5.5 0 0 1 0 1v.57c1.36.196 2.594.78 3.584 1.64l.012-.013.354-.354-.354-.353a.5.5 0 0 1 .707-.708l1.414 1.415a.5.5 0 1 1-.707.707l-.353-.354-.354.354-.013.012A7 7 0 1 1 7 2.071V1.5a.5.5 0 0 1-.5-.5M8 3a6 6 0 1 0 .001 12A6 6 0 0 0 8 3"/>
+					  </svg>
+					Yeniwatch
+				</li>
+				<li class="pending">
+					<svg style="margin-right: 5px;" xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" class="bi bi-stopwatch" viewBox="0 0 16 16">
+						<path d="M8.5 5.6a.5.5 0 1 0-1 0v2.9h-3a.5.5 0 0 0 0 1H8a.5.5 0 0 0 .5-.5z"/>
+						<path d="M6.5 1A.5.5 0 0 1 7 .5h2a.5.5 0 0 1 0 1v.57c1.36.196 2.594.78 3.584 1.64l.012-.013.354-.354-.354-.353a.5.5 0 0 1 .707-.708l1.414 1.415a.5.5 0 1 1-.707.707l-.353-.354-.354.354-.013.012A7 7 0 1 1 7 2.071V1.5a.5.5 0 0 1-.5-.5M8 3a6 6 0 1 0 .001 12A6 6 0 0 0 8 3"/>
+					  </svg>
+					Tranimeizle
+				</li>
+			</ul>
+		</div>
+		<div class="button-div">
+			<button type="button" class="main-button" id="main-button">
+				Aktif
+			</button>
+		</div>
+
+		<script src="./js/popup.js"></script>
+	</body>
+
 </html>
