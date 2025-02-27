@@ -1,6 +1,6 @@
 {
     "manifest_version": 3,
-    "name": "TürkAnime Yardımcısı",
+    "name": "TürkAnime Yardımcısı (turkanime.co)",
     "description": "Türk anime izleme platformlarını geliştiren bir tarayıcı eklentisi.",
     "version": "1.0",
     "icons": {
