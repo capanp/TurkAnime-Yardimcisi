@@ -6,9 +6,9 @@
 
 ## Ne İşe Yarar?
   - Sizi uğraştırmadan içeriği seçer.
-  - Kaydedilmiş çevirmenleri sırasına göre seçer.
+  - Kaydedilmiş çevirmenleri sırasına göre seçme.
   - Kaydedilmiş oynatıcıları sırasına göre seçip başlatma.
-  - Bir sonraki bölüme geçmek için klavye tuşu kısayolu "-, +".
+  - Önceki ve sonraki bölüme geçmek için klavye kısayolu "-, +".
 
 ## Desteklenen Websiteleri 
   - 🟢 turkanime.co
