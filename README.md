@@ -4,13 +4,13 @@
 
  https://chromewebstore.google.com/detail/t%C3%BCrkanime-yard%C4%B1mc%C4%B1s%C4%B1-turk/iebihkhjnleedpmpdpcplimgjbodmjec
 
-## Ne İşe Yarar?
+### Ne İşe Yarar?
   - Sizi uğraştırmadan içeriği seçer.
   - Kaydedilmiş çevirmenleri sırasına göre seçme.
   - Kaydedilmiş oynatıcıları sırasına göre seçip başlatma.
   - Önceki ve sonraki bölüme geçmek için klavye kısayolu "-, +".
 
-## Desteklenen Websiteleri 
+### Desteklenen Websiteleri 
   - 🟢 turkanime.co
   - 🟡 yeniwatch.net
 
