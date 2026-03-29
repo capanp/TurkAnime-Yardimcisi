@@ -437,13 +437,24 @@ async function getPermission() {
 
 		if (localStorage.getItem("Translators") == null) { //çevirmen sekmesi için ilk açılış
 			divTranslatorInput.value = "adonis";
-			localStorage.setItem("Translators", "adonis");
+			localStorage.setItem("Translators", JSON.stringify(["adonis"]));
 			document.getElementById("divTranslator").appendChild(divTranslatorInput);
 		} else {
 			divTranslatorOldHeight = divTranslatorOldHeight - 40;
 			divTranslatorNum = 0;
 			let li = 0;
-			let tlList = JSON.parse(localStorage.getItem("Translators"));
+			let tlRaw = localStorage.getItem("Translators");
+			let tlList;
+			try {
+				tlList = JSON.parse(tlRaw);
+				// JSON.parse("adonis") string döndürür, array değil — düzelt
+				if (!Array.isArray(tlList)) {
+					tlList = tlRaw ? tlRaw.split(",").map(s => s.trim()).filter(Boolean) : ["adonis"];
+				}
+			} catch (e) {
+				// Geçersiz JSON ise virgülle ayrılmış string olarak oku
+				tlList = tlRaw ? tlRaw.split(",").map(s => s.trim()).filter(Boolean) : ["adonis"];
+			}
 
 			while (li < tlList.length) {
 				if (tlList[li] == undefined || tlList == null) {
@@ -474,6 +485,213 @@ async function getPermission() {
 				li = li + 1;
 			}
 		}
+
+
+		// ── AYARLAR PANELİ ──────────────────────────────────────────────
+		let divAyarlar = document.createElement('div');
+		divAyarlar.id = "divAyarlar";
+		divAyarlar.style.height = "auto";
+		divAyarlar.style.padding = "0 0 0 0";
+		divAyarlar.style.margin = "auto";
+		divAyarlar.style.width = "80%";
+		divAyarlar.style.borderRadius = "4px";
+
+		if (getComputedStyle(elementt).display.toString() !== "inline") {
+			divAyarlar.style.backgroundColor = "#23252c";
+			divAyarlar.style.border = "1px solid #17191f";
+		}
+
+		document.getElementById("divMenuScroll").appendChild(divAyarlar);
+
+		// Ayarlar başlık (tıklanınca aç/kapa)
+		let divAyarlarHeader = document.createElement('div');
+		divAyarlarHeader.id = "divAyarlarHeader";
+		divAyarlarHeader.innerHTML = "Ayarlar";
+		divAyarlarHeader.style.display = "flex";
+		divAyarlarHeader.style.cursor = "pointer";
+		divAyarlarHeader.style.userSelect = "none";
+		divAyarlarHeader.style.alignItems = "center";
+		divAyarlarHeader.style.justifyContent = "center";
+		divAyarlarHeader.style.height = "25px";
+
+		if (getComputedStyle(elementt).display.toString() != "inline") {
+			divAyarlarHeader.style.backgroundColor = "#17191f";
+			divAyarlarHeader.style.backgroundImage = "-webkit-linear-gradient(#17191f,#17191f)";
+			divAyarlarHeader.style.color = "#fff";
+			divAyarlarHeader.style.borderBottom = "0px";
+		}
+
+		document.getElementById("divAyarlar").appendChild(divAyarlarHeader);
+
+		// Ayarlar içerik wrapper (aç/kapa için)
+		let divAyarlarContent = document.createElement('div');
+		divAyarlarContent.id = "divAyarlarContent";
+		divAyarlarContent.style.display = "none"; // başlangıçta kapalı
+		divAyarlarContent.style.padding = "10px 8px 0 8px";
+		document.getElementById("divAyarlar").appendChild(divAyarlarContent);
+
+		divAyarlarHeader.onclick = function () {
+			if (divAyarlarContent.style.display === "none") {
+				divAyarlarContent.style.display = "block";
+			} else {
+				divAyarlarContent.style.display = "none";
+			}
+		};
+
+		// ── Bölüm geçme tuşları ─────────────────────────────────────────
+		let savedNextKey = localStorage.getItem("NextKey") || "NumpadAdd";
+		let savedPrevKey = localStorage.getItem("PrevKey") || "NumpadSubtract";
+		let keyNavActive = localStorage.getItem("KeyNavActive") !== "0"; // varsayılan aktif
+
+		// Tuş etiketi yardımcı fonksiyon
+		function keyLabel(code) {
+			const map = {
+				"NumpadAdd": "Numpad +",
+				"NumpadSubtract": "Numpad -",
+				"NumpadMultiply": "Numpad *",
+				"NumpadDivide": "Numpad /",
+				"NumpadEnter": "Numpad Enter",
+			};
+			return map[code] || code;
+		}
+
+		// — Sonraki bölüm tuşu —
+		let labelNext = document.createElement('div');
+		labelNext.innerHTML = "Sonraki Bölüm";
+		labelNext.style.display = "flex";
+		labelNext.style.justifyContent = "center";
+		labelNext.style.fontSize = "12px";
+		labelNext.style.marginBottom = "5px";
+		labelNext.style.marginLeft = "auto";
+		labelNext.style.marginRight = "auto";
+		if (getComputedStyle(elementt).display.toString() !== "inline") {
+			labelNext.style.color = "#c5c8ce";
+		}
+		divAyarlarContent.appendChild(labelNext);
+
+		let inputNextKey = document.createElement('input');
+		inputNextKey.type = "text";
+		inputNextKey.id = "inputNextKey";
+		inputNextKey.readOnly = true;
+		inputNextKey.value = keyLabel(savedNextKey);
+		inputNextKey.placeholder = "Tuşa bas...";
+		inputNextKey.style.marginBottom = "15px";
+		inputNextKey.style.marginLeft = "auto";
+		inputNextKey.style.marginRight = "auto";
+		inputNextKey.style.cursor = "pointer";
+		inputNextKey.title = "Değiştirmek için tıkla ve tuşa bas";
+		divAyarlarContent.appendChild(inputNextKey);
+
+		// — Önceki bölüm tuşu —
+		let labelPrev = document.createElement('div');
+		labelPrev.innerHTML = "Önceki Bölüm";
+		labelPrev.style.display = "flex";
+		labelPrev.style.justifyContent = "center";
+		labelPrev.style.fontSize = "12px";
+		labelPrev.style.marginBottom = "5px";
+		if (getComputedStyle(elementt).display.toString() !== "inline") {
+			labelPrev.style.color = "#c5c8ce";
+		}
+		divAyarlarContent.appendChild(labelPrev);
+
+		let inputPrevKey = document.createElement('input');
+		inputPrevKey.type = "text";
+		inputPrevKey.id = "inputPrevKey";
+		inputPrevKey.readOnly = true;
+		inputPrevKey.value = keyLabel(savedPrevKey);
+		inputPrevKey.placeholder = "Tuşa bas...";
+		inputPrevKey.style.marginBottom = "15px";
+		inputPrevKey.style.marginLeft = "auto";
+		inputPrevKey.style.marginRight = "auto";
+		inputPrevKey.style.cursor = "pointer";
+		inputPrevKey.title = "Değiştirmek için tıkla ve tuşa bas";
+		divAyarlarContent.appendChild(inputPrevKey);
+
+		// Tuş dinleme: inputa tıklanınca keydown yakala
+		let listeningInput = null;
+
+		function startListening(inputEl) {
+			listeningInput = inputEl;
+			inputEl.value = "Tuşa bas...";
+			inputEl.style.outline = "2px solid #b22222";
+		}
+
+		inputNextKey.addEventListener("click", () => startListening(inputNextKey));
+		inputPrevKey.addEventListener("click", () => startListening(inputPrevKey));
+
+		document.addEventListener("keydown", function captureKey(e) {
+			if (!listeningInput) return;
+			e.preventDefault();
+			e.stopPropagation();
+			if (listeningInput === inputNextKey) {
+				savedNextKey = e.code;
+				localStorage.setItem("NextKey", e.code);
+			} else {
+				savedPrevKey = e.code;
+				localStorage.setItem("PrevKey", e.code);
+			}
+			listeningInput.value = keyLabel(e.code);
+			listeningInput.style.outline = "";
+			listeningInput = null;
+		}, true); // capture phase — diğer keydown'dan önce
+
+		// — Aktif / Pasif toggle —
+		let divKeyNavToggle = document.createElement('div');
+		divKeyNavToggle.style.display = "flex";
+		divKeyNavToggle.style.alignItems = "center";
+		divKeyNavToggle.style.gap = "8px";
+		divKeyNavToggle.style.marginBottom = "4px";
+		divKeyNavToggle.style.justifyContent = "center";
+		divKeyNavToggle.style.width = "100%";
+		divAyarlarContent.appendChild(divKeyNavToggle);
+
+		let labelKeyNav = document.createElement('span');
+		labelKeyNav.innerHTML = "Bölüm Kısayolu";
+		labelKeyNav.style.fontSize = "12px";
+		labelKeyNav.style.marginLeft = "15px";
+		if (getComputedStyle(elementt).display.toString() !== "inline") {
+			labelKeyNav.style.color = "#c5c8ce";
+		}
+		divKeyNavToggle.appendChild(labelKeyNav);
+
+		let btnKeyNavToggle = document.createElement('button');
+		btnKeyNavToggle.id = "btnKeyNavToggle";
+		btnKeyNavToggle.style.marginRight = "15px";
+		btnKeyNavToggle.style.padding = "5px 5px";
+		btnKeyNavToggle.style.border = "1px solid #ccc";
+		btnKeyNavToggle.style.borderRadius = "4px";
+		btnKeyNavToggle.style.lineHeight = "1";
+
+		function updateToggleStyle() {
+			if (keyNavActive) {
+				btnKeyNavToggle.innerHTML = "Aktif";
+				btnKeyNavToggle.style.backgroundColor = "#b22222";
+				btnKeyNavToggle.style.color = "#fff";
+				btnKeyNavToggle.style.borderColor = "#a01f1f";
+			} else {
+				btnKeyNavToggle.innerHTML = "Pasif";
+				if (getComputedStyle(elementt).display.toString() == "inline") {
+					btnKeyNavToggle.style.backgroundColor = "#f0f0f0";
+					btnKeyNavToggle.style.color = "#333";
+					btnKeyNavToggle.style.borderColor = "#ccc";
+				} else {
+					btnKeyNavToggle.style.backgroundColor = "#1e2026";
+					btnKeyNavToggle.style.color = "#c5c8ce";
+					btnKeyNavToggle.style.borderColor = "#17191f";
+				}
+			}
+		}
+
+		updateToggleStyle();
+
+		btnKeyNavToggle.onclick = function () {
+			keyNavActive = !keyNavActive;
+			localStorage.setItem("KeyNavActive", keyNavActive ? "1" : "0");
+			updateToggleStyle();
+		};
+
+		divKeyNavToggle.appendChild(btnKeyNavToggle);
+		// ── AYARLAR PANELİ SONU ─────────────────────────────────────────
 
 		let urlArrayDot = url.split(".");
 		let urlArraySlash = urlArrayDot[2].split("/");
@@ -594,11 +812,24 @@ async function getPermission() {
 			}
 		}
 
-		document.addEventListener("keypress", async (event) => {
-			if (event.code === "NumpadAdd") {
+		// İframe (video player) tıklandığında focus çalındığı için
+		// klavye olayları ana sayfaya gelmiyor. Blur tetiklendiğinde
+		// focus iframe'den ana pencereye geri alınıyor.
+		window.addEventListener('blur', function () {
+			setTimeout(function () {
+				if (document.activeElement && document.activeElement.tagName === 'IFRAME') {
+					window.focus();
+				}
+			}, 0);
+		});
+
+		// Bölüm geçme kısayolu — tuşlar ve aktif/pasif durumu Ayarlar panelinden kontrol edilir
+		document.addEventListener("keydown", async (event) => {
+			if (!keyNavActive || listeningInput) return; // pasifse veya tuş dinleniyorsa atla
+			if (event.code === savedNextKey) {
 				const nextEpisode = await waitForElm('#arkaplan > div:nth-child(3) > div.col-xs-8 > div > div:nth-child(3) > div > div.panel-footer.clearfix > div:nth-child(3) > a:nth-child(2)');
 				nextEpisode.click();
-			} else if (event.code === "NumpadSubtract") {
+			} else if (event.code === savedPrevKey) {
 				const prevEpisode = await waitForElm('#arkaplan > div:nth-child(3) > div.col-xs-8 > div > div:nth-child(3) > div > div.panel-footer.clearfix > div:nth-child(3) > a:nth-child(1)');
 				prevEpisode.click();
 			}
