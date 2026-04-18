@@ -1,839 +1,876 @@
 const storage = chrome?.storage || browser?.storage;
 
-async function getPermission() {
-    return new Promise((resolve) => {
-        storage.local.get(["aktiflikDurumu"], (result) => {
-            // Eğer aktiflikDurumu undefined veya null ise 1 olarak ayarla
-            if (result.aktiflikDurumu === undefined || result.aktiflikDurumu === null) {
-                console.log("İlk açılış: Uzantı varsayılan olarak aktif.");
-                storage.local.set({ "aktiflikDurumu": 1 }); // Varsayılan olarak 1 olarak ayarla
-                resolve(1); // 1 olarak döndür
-            } else if (result.aktiflikDurumu) {
-                console.log("Uzantı aktif");
-                resolve(1); // 1 olarak döndür
+// ═══════════════════════════════════════════════════════════════════
+//  YARDIMCI FONKSİYONLAR
+// ═══════════════════════════════════════════════════════════════════
+
+function getPermission() {
+    return new Promise(resolve => {
+        storage.local.get(["aktiflikDurumu"], result => {
+            if (result.aktiflikDurumu == null) {
+                storage.local.set({ aktiflikDurumu: 1 });
+                resolve(1);
             } else {
-                console.log("Uzantı pasif");
-                resolve(0); // 0 olarak döndür
+                resolve(result.aktiflikDurumu ? 1 : 0);
             }
         });
     });
 }
 
+function waitForElm(selector) {
+    return new Promise(resolve => {
+        const found = document.querySelector(selector);
+        if (found) return resolve(found);
+        const obs = new MutationObserver(() => {
+            const el = document.querySelector(selector);
+            if (el) { resolve(el); obs.disconnect(); }
+        });
+        obs.observe(document.body, { childList: true, subtree: true });
+    });
+}
+
+// localStorage'dan güvenli şekilde array oku (JSON veya virgüllü string)
+function safeJsonArray(raw, fallback) {
+    if (!raw) return [...fallback];
+    try {
+        const p = JSON.parse(raw);
+        return Array.isArray(p) ? p : raw.split(",").map(s => s.trim()).filter(Boolean);
+    } catch {
+        return raw.split(",").map(s => s.trim()).filter(Boolean);
+    }
+}
+
+// Element oluşturma kısayolu
+function make(tag, styles = {}, attrs = {}) {
+    const e = document.createElement(tag);
+    Object.assign(e.style, styles);
+    Object.entries(attrs).forEach(([k, v]) => {
+        if (k === "text") e.textContent = v;
+        else e[k] = v;
+    });
+    return e;
+}
+
+// Elementi bekle VE DOM değişimleri quietMs boyunca duruncaya kadar bekle.
+// Event listener'ların bağlanması için waitForIdle'dan çok daha güvenilir.
+function waitForElmStable(selector, quietMs = 150) {
+    return new Promise(resolve => {
+        let timer = null;
+
+        function onFound(el) {
+            clearTimeout(timer);
+            timer = setTimeout(() => { obs.disconnect(); resolve(el); }, quietMs);
+        }
+
+        const el = document.querySelector(selector);
+        if (el) { onFound(el); }
+
+        const obs = new MutationObserver(() => {
+            const found = document.querySelector(selector);
+            if (found) onFound(found);
+        });
+        obs.observe(document.body, { childList: true, subtree: true });
+    });
+}
+
+// Elementi bekle, ama her zaman en az bir DOM değişimi gerçekleşene kadar bekle.
+// waitForElmStable'dan farkı: eleman zaten varken çağrılsa bile, DOM mutation
+// gerçekleşene dek resolve etmez. Translator click sonrası player DOM'u
+// yeniden oluşana kadar beklemek için idealdir.
+function waitForMutationThenStable(selector, quietMs = 400, timeoutMs = 8000) {
+    return new Promise(resolve => {
+        let timer = null;
+
+        const check = () => {
+            const el = document.querySelector(selector);
+            if (el) {
+                clearTimeout(timer);
+                timer = setTimeout(() => { obs.disconnect(); resolve(el); }, quietMs);
+            } else {
+                clearTimeout(timer); // Element kayboldu, timer'ı sıfırla
+            }
+        };
+
+        const obs = new MutationObserver(check);
+        obs.observe(document.body, { childList: true, subtree: true });
+
+        // Güvenlik timeout'u
+        setTimeout(() => {
+            obs.disconnect();
+            resolve(document.querySelector(selector));
+        }, timeoutMs);
+    });
+}
+
+// Büyük/küçük harf normalizasyonu — Türkçe İ/I sorunu için.
+// "MERDİVEN6".toLowerCase() → "merdi̇ven6" (i + U+0307 combining dot) olur,
+// saklanan "merdiven6" ile eşleşmez. NFD + combining strip ile düzeltiyoruz.
+function normalizeStr(s) {
+    return String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
+// Hover renk geçişi ekle
+function addHover(elem, hoverColor, normalColor) {
+    elem.addEventListener("mouseenter", () => elem.style.color = hoverColor);
+    elem.addEventListener("mouseleave", () => elem.style.color = normalColor);
+}
+
+// Tıklama feedback'i — kısa bir yeşil parıltı
+function addClickFlash(elem) {
+    elem.addEventListener("mousedown", () => {
+        const prev = elem.style.backgroundColor;
+        const prevTransition = elem.style.transition;
+        elem.style.transition = "background-color 0s";
+        elem.style.backgroundColor = "#2a7a4b";
+        setTimeout(() => {
+            elem.style.transition = "background-color 0.4s ease";
+            elem.style.backgroundColor = prev;
+            setTimeout(() => { elem.style.transition = prevTransition; }, 450);
+        }, 80);
+    });
+}
+
+// İki objeyi derin birleştirir (sadece plain object'ler için).
+// Siteye özel tema override'larını base tema üzerine uygulamak için kullanılır.
+// Örnek: deepMerge({ a: { x: 1, y: 2 } }, { a: { y: 9 } }) → { a: { x: 1, y: 9 } }
+function deepMerge(base, overrides) {
+    const result = { ...base };
+    for (const key of Object.keys(overrides)) {
+        if (
+            overrides[key] !== null &&
+            typeof overrides[key] === "object" &&
+            !Array.isArray(overrides[key]) &&
+            typeof base[key] === "object" &&
+            base[key] !== null
+        ) {
+            result[key] = { ...base[key], ...overrides[key] };
+        } else {
+            result[key] = overrides[key];
+        }
+    }
+    return result;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  TEMA — tüm renkler tek yerde
+// ═══════════════════════════════════════════════════════════════════
+
+function buildTheme(isDark) {
+    // Menünün sorunsuz uzaması ve sitelerin CSS'inden etkilenmemesi için temel kalıp
+    const baseMenu = {
+        position: "fixed",
+        bottom: "150px",
+        right: "7%",
+        width: "12%",
+        minWidth: "160px",
+        maxWidth: "200px",
+        minHeight: "430px",
+        height: "fit-content", // KUTUNUN AŞAĞI UZAMASINI SAĞLAYAN ANAHTAR
+        display: "flex",
+        justifyContent: "start",
+        flexDirection: "column", // İÇERİĞİ ALT ALTA DİZER
+        zIndex: "2032",
+        borderRadius: "4px",
+        boxSizing: "border-box",
+        fontFamily: '"Arial", Tahoma, Verdana, Helvetica, sans-serif'
+    };
+
+    if (isDark) return {
+        isDark: true,
+        menu: { ...baseMenu, backgroundColor: "#1e2026", border: "1px solid #17191f", boxShadow: "0 0 5px #22242b", color: "#c5c8ce" },
+        header: { backgroundColor: "#17191f", color: "#c5c8ce" },
+        section: { backgroundColor: "#23252c", border: "1px solid #17191f", marginTop: "6px" },
+        secHdr: { backgroundColor: "#17191f", backgroundImage: "-webkit-linear-gradient(#17191f,#17191f)", color: "#fff" },
+        btn: { background: "#1e2026", border: "1px solid #17191f", color: "#c5c8ce", cursor: "pointer" },
+        inp: { borderColor: "rgba(23, 25, 31, 0.8)", backgroundColor: "#17191f", color: "#c5c8ce" },
+        label: { color: "#c5c8ce" },
+        isBtn: { margin: "6px auto", width: "40%", },
+        activeBtn:  { backgroundColor: "#b22222", color: "#fff", borderColor: "#a01f1f" },
+        passiveBtn: { backgroundColor: "#1e2026", color: "#c5c8ce", borderColor: "#17191f" },
+        menuScroll: { position: "absolute", padding: "5px 10px 10px 10px", },
+        hover: "white", normal: "#c5c8ce",
+    };
+    return {
+        isDark: false,
+        menu: { ...baseMenu, backgroundColor: "#eee", boxShadow: "0 0 5px #222", color: "#666666", backgroundImage: "linear-gradient(to bottom,rgba(255,255,255,0.9) 10%,rgba(255,255,255,0.5) 100%)" },
+        header: { boxShadow: "0 5px 5px -4px rgba(0, 0, 0, 0.15) inset", color: "#fff", backgroundColor: "#2c2c2c", borderRadius: "3px 3px 0 0", backgroundImage: "-webkit-linear-gradient(top, #333, #222)" },
+        section: { borderColor: "#fff", boxShadow: "0 0 5px #222", marginTop: "6px" },
+        secHdr: { borderBottom: "1px solid #DDD", borderRadius: "3px 3px 0 0", backgroundImage: "-webkit-gradient(linear, 0 0, 0 100%, from(#fdfdfd), to(#ececec))", backgroundColor: "white", },
+        btn: { cursor: "pointer" },
+        inp: {},
+        label: {},
+        isBtn: { margin: "6px auto", width: "40%", },
+        activeBtn:  { backgroundColor: "#b22222", color: "#fff", borderColor: "#a01f1f" },
+        passiveBtn: { backgroundColor: "#1e2026", color: "#c5c8ce", borderColor: "#17191f" },
+        menuScroll: { position: "absolute", padding: "5px 10px 10px 10px", },
+        hover: "black", normal: "#2c2c2c",
+    };
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  SİTE KONFİGÜRASYONLARI
+// ═══════════════════════════════════════════════════════════════════
+
+const LOG = (...args) => console.log('[TraHelper]', ...args);
+const WARN = (...args) => console.warn('[TraHelper]', ...args);
+
+const SITES = {
+
+    // ── Mevcut site ─────────────────────────────────────────────────
+    turkanime: {
+        match() {
+            const path = window.location.pathname.split("/");
+            const result = !window.location.hostname.includes("tranimeizle") && path[1] === "video";
+            LOG(`[turkanime] match() → ${result} | hostname: ${window.location.hostname} | path[1]: ${path[1]}`);
+            return result;
+        },
+        isDarkTheme() {
+            const el = document.querySelector('.sun');
+            return !el || getComputedStyle(el).display !== "block";
+        },
+        isWatchPage() {
+            const result = window.location.pathname.split("/")[1] === "video";
+            LOG(`[turkanime] isWatchPage() → ${result}`);
+            return result;
+        },
+        async autoSelectTranslator(list) {
+            LOG(`[turkanime] autoSelectTranslator() başladı | liste: ${JSON.stringify(list)}`);
+            const btn1 = document.querySelector('#videodetay > div > div.btn-group.pull-right > button');
+            const btn2 = document.querySelector('#videodetay > div > div.pull-right > button:nth-child(1)');
+            LOG(`[turkanime] btn1: ${btn1 ? 'bulundu' : 'YOK'} | btn2: ${btn2 ? 'bulundu' : 'YOK'}`);
+            if (btn1) btn1.click();
+            const container = await waitForElmStable('#videodetay > div > div.pull-right');
+            const buttons = [...container.children];
+            LOG(`[turkanime] çevirmen butonları (${buttons.length} adet):`, buttons.map(b => b.innerHTML.trim()));
+            for (const name of list) {
+                const match = buttons.find(b => normalizeStr(b.innerHTML.trim()).endsWith(normalizeStr(name)));
+                if (match) { LOG(`[turkanime] Çevirmen eşleşti: "${name}" → tıklanıyor`); match.click(); return; }
+                WARN(`[turkanime] Çevirmen bulunamadı: "${name}"`);
+            }
+            LOG(`[turkanime] Hiç eşleşme yok → btn2 tıklanıyor`);
+            if (btn2) btn2.click();
+        },
+        async autoSelectPlayer(list) {
+            LOG(`[turkanime] autoSelectPlayer() başladı | liste: ${JSON.stringify(list)}`);
+            const container = await waitForElmStable('#videodetay > div > div:nth-child(4)');
+            const buttons = [...container.children];
+            LOG(`[turkanime] player butonları (${buttons.length} adet):`, buttons.map(b => b.innerHTML.trim().split(/\s+/).pop()));
+            for (const name of list) {
+                const parts = (btn) => btn.innerHTML.split(" ");
+                const match = buttons.find(b => normalizeStr(parts(b)[parts(b).length - 1]) === normalizeStr(name));
+                if (match) { LOG(`[turkanime] Player eşleşti: "${name}" → tıklanıyor`); match.click(); return; }
+                WARN(`[turkanime] Player bulunamadı: "${name}"`);
+            }
+            LOG(`[turkanime] Hiçbir player eşleşmedi → ilk buton tıklanıyor`); if (buttons[0]) buttons[0].click();
+        },
+        nextSel: '#arkaplan > div:nth-child(3) > div.col-xs-8 > div > div:nth-child(3) > div > div.panel-footer.clearfix > div:nth-child(3) > a:nth-child(2)',
+        prevSel: '#arkaplan > div:nth-child(3) > div.col-xs-8 > div > div:nth-child(3) > div > div.panel-footer.clearfix > div:nth-child(3) > a:nth-child(1)',
+    },
+
+    // ── tranimeizle.io ──────────────────────────────────────────────
+    tranimeizle: {
+        match() {
+            const result = window.location.hostname.includes("tranimeizle");
+            LOG(`[tranimeizle] match() → ${result} | hostname: ${window.location.hostname}`);
+            return result;
+        },
+        isDarkTheme() {
+            const el = document.querySelector('.page_main_wrapper');
+            console.log(el, "style", getComputedStyle(el).backgroundColor)
+            return !el || getComputedStyle(el).backgroundColor !== "rgb(237, 239, 244)";
+        },
+        // İzleme sayfası tespiti: URL değil, sadece izleme sayfasında olan element
+        isWatchPage() {
+            const el = document.querySelector('.videoSource-items, #sourceList');
+            const result = !!el;
+            LOG(`[tranimeizle] isWatchPage() → ${result} | bulunan element: ${el ? el.id || el.className : 'YOK'}`);
+            return result;
+        },
+        async autoSelectTranslator(list) {
+            LOG(`[tranimeizle] autoSelectTranslator() başladı | liste: ${JSON.stringify(list)}`);
+            // .playlist-title birden fazla var; direkt .fansubSelector'ı bekle
+            LOG(`[tranimeizle] .fansubSelector elementi bekleniyor...`);
+            await waitForElmStable('.fansubSelector');
+            const buttons = [...document.querySelectorAll('.fansubSelector')];
+            LOG(`[tranimeizle] fansubSelector butonları (${buttons.length} adet):`, buttons.map(b => b.textContent.trim()));
+            if (buttons.length === 0) { WARN('[tranimeizle] Hiç .fansubSelector butonu bulunamadı! HTML:', container.innerHTML); return; }
+            for (const name of list) {
+                const match = buttons.find(b => normalizeStr(b.textContent.trim()) === normalizeStr(name));
+                if (match) { LOG(`[tranimeizle] Çevirmen eşleşti: "${name}" → tıklanıyor`); match.click(); return; }
+                WARN(`[tranimeizle] Çevirmen bulunamadı: "${name}" | mevcut: ${buttons.map(b => b.textContent.trim()).join(', ')}`);
+            }
+            LOG(`[tranimeizle] Eşleşme yok → ilk buton tıklanıyor: "${buttons[0]?.textContent.trim()}"`);
+            if (buttons[0]) buttons[0].click();
+        },
+        async autoSelectPlayer(list) {
+            LOG(`[tranimeizle] autoSelectPlayer() başladı | liste: ${JSON.stringify(list)}`);
+            LOG(`[tranimeizle] .sourceBtn öğelerinin yüklenmesi bekleniyor...`);
+
+            // DÜZELTME BURADA: Sadece boş kutuyu değil, kutunun içindeki butonun oluşmasını bekle
+            await waitForElmStable('#sourceList .sourceBtn');
+
+            const container = document.querySelector('#sourceList');
+            const buttons = [...container.querySelectorAll('.sourceBtn')];
+
+            LOG(`[tranimeizle] sourceBtn'ler (${buttons.length} adet):`, buttons.map(b => {
+                const titleNode = b.querySelector('.title');
+                return titleNode?.firstChild?.textContent?.trim() || '(boş)';
+            }));
+
+            if (buttons.length === 0) { WARN('[tranimeizle] Hiç .sourceBtn bulunamadı! HTML:', container.innerHTML); return; }
+
+            for (const name of list) {
+                const match = buttons.find(b => {
+                    const titleNode = b.querySelector('.title');
+                    const text = normalizeStr(titleNode?.firstChild?.textContent?.trim() || "");
+                    return text === normalizeStr(name);
+                });
+                if (match) { LOG(`[tranimeizle] Player eşleşti: "${name}" → tıklanıyor`); match.click(); return; }
+                WARN(`[tranimeizle] Player bulunamadı: "${name}"`);
+            }
+            LOG(`[tranimeizle] Hiçbir player eşleşmedi → ilk buton tıklanıyor: "${buttons[0]?.querySelector('.title')?.firstChild?.textContent?.trim()}"`);
+            if (buttons[0]) buttons[0].click(); else console.log("[ERROR] ne oldu uşağım")
+        },
+        nextSel: "#mainBody > div.wrapper > main > div:nth-child(5) > div > div.clearfix.my-15 > a:nth-child(1)",
+        prevSel: "#mainBody > div.wrapper > main > div:nth-child(5) > div > div.clearfix.my-15 > a.btn.btn-news.pull-left",
+    },
+    // ── anizm.net ───────────────────────────────────────────────────
+    anizm: {
+        match() {
+            const result = window.location.hostname.includes("anizm");
+            LOG(`[anizm] match() → ${result} | hostname: ${window.location.hostname}`);
+            return result;
+        },
+        isDarkTheme: () => true, // Sadece karanlık tema istediğin için her zaman true dönüyoruz
+
+        isWatchPage() {
+            // Sadece video izleme sayfasında olan ana iframe kapsayıcısını arıyoruz
+            const el = document.querySelector('.episodePlayerContent');
+            const result = !!el;
+            LOG(`[anizm] isWatchPage() → ${result} | bulunan element: ${el ? el.className : 'YOK'}`);
+            return result;
+        },
+
+        async autoSelectTranslator(list) {
+            LOG(`[anizm] autoSelectTranslator() başladı | liste: ${JSON.stringify(list)}`);
+            LOG(`[anizm] .episodeTranslators içindeki butonlar bekleniyor...`);
+
+            // Çevirmen butonlarının sayfaya yüklenmesini bekle
+            await waitForElmStable('.episodeTranslators a[data-translatorclick]');
+            const buttons = [...document.querySelectorAll('.episodeTranslators a[data-translatorclick]')];
+
+            LOG(`[anizm] Çevirmen butonları (${buttons.length} adet):`, buttons.map(b => b.textContent.trim()));
+            if (buttons.length === 0) { WARN('[anizm] Çevirmen butonu bulunamadı!'); return; }
+
+            // Frameworkleri kandırmak için gerçekçi tıklama
+            const gercekciTiklama = (element) => {
+                element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+            };
+
+            // Tıklandıktan sonra player DOM'unun yeniden oluşmasını bekleyen yardımcı.
+            // Translator click → site AJAX ile player listesini yıkıp yeniden kurar;
+            // autoSelectPlayer bu rebuild bitmeden çalışmamalı.
+            const waitForPlayerRebuild = () => {
+                LOG(`[anizm] Player DOM rebuild bekleniyor...`);
+                return waitForMutationThenStable('.episodePlayers .videoPlayerButtons', 400, 8000);
+            };
+
+            for (const name of list) {
+                const match = buttons.find(b => normalizeStr(b.textContent.trim()).includes(normalizeStr(name)));
+                if (match) {
+                    LOG(`[anizm] Çevirmen eşleşti: "${name}" → tıklanıyor`);
+                    gercekciTiklama(match);
+                    await waitForPlayerRebuild();
+                    return;
+                }
+                WARN(`[anizm] Çevirmen bulunamadı: "${name}"`);
+            }
+            LOG(`[anizm] Eşleşme yok → ilk buton tıklanıyor: "${buttons[0]?.textContent.trim()}"`);
+            if (buttons[0]) {
+                gercekciTiklama(buttons[0]);
+                await waitForPlayerRebuild();
+            }
+        },
+
+        async autoSelectPlayer(list) {
+            LOG(`[anizm] autoSelectPlayer() başladı | liste: ${JSON.stringify(list)}`);
+            LOG(`[anizm] .videoPlayerButtons bekleniyor...`);
+
+            // autoSelectTranslator zaten player DOM rebuild'ini bekledi ve döndü;
+            // burada DOM zaten stabil olmalı. waitForElmStable güvenlik ağı olarak kalıyor.
+            await waitForElmStable('.episodePlayers .videoPlayerButtons', 200);
+            const buttons = [...document.querySelectorAll('.episodePlayers .videoPlayerButtons')];
+
+            LOG(`[anizm] Player butonları (${buttons.length} adet):`, buttons.map(b => b.textContent.trim()));
+            if (buttons.length === 0) { WARN('[anizm] Player butonu bulunamadı!'); return; }
+
+            // Frameworkleri kandırmak için gerçekçi tıklama
+            const gercekciTiklama = (element) => {
+                element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+            };
+
+            for (const name of list) {
+                const match = buttons.find(b => normalizeStr(b.textContent.trim()).includes(normalizeStr(name)));
+                if (match) {
+                    LOG(`[anizm] Player eşleşti: "${name}" → tıklanıyor`);
+                    gercekciTiklama(match);
+                    return;
+                }
+                WARN(`[anizm] Player bulunamadı: "${name}"`);
+            }
+            LOG(`[anizm] Hiçbir player eşleşmedi → ilk buton tıklanıyor: "${buttons[0]?.textContent.trim()}"`);
+            if (buttons[0]) gercekciTiklama(buttons[0]);
+        },
+
+        nextSel: "#pageContent > div.ui.container.episodeContainer > div.anizm_columns.anizm_fullWidth.mt-4.anizm_mobile.episodeInfoContainer > div.anizm_column.animeIzleInnerContainer > div.mb-3 > div:nth-child(3) > a.anizm_button.default.mini.puf_02",
+        prevSel: "#pageContent > div.ui.container.episodeContainer > div.anizm_columns.anizm_fullWidth.mt-4.anizm_mobile.episodeInfoContainer > div.anizm_column.animeIzleInnerContainer > div.mb-3 > div:nth-child(3) > a:nth-child(1)",
+
+        // Siteye özel tema override'ları — sadece değiştirmek istediğin anahtarları yaz.
+        // Yazılmayan anahtarlar buildTheme(isDarkTheme()) çıktısından gelir.
+        // Bu bloğu tamamen silerek ya da themeOverrides'ı kaldırarak varsayılan temaya dönebilirsin.
+        themeOverrides: {
+            // Örnek: anizm'in koyu arka planına uyan özel renkler
+            menu: { backgroundImage: "-webkit-gradient(linear, 0 0, 0 100%, from(#2a2a2a), to(#1e1e1e))", backgroundColor: "#1e1e1e", border: "" },
+            header: { backgroundColor: "#1e1e1e", color: "#e0e3ea" },
+            section: { backgroundColor: "#2a2a2a", border: "" },
+            secHdr: { backgroundImage: "#1e1e1e", backgroundColor: "#1e1e1e", color: "#fff" },
+            inp: { borderColor: "rgba(30, 30, 30, 0.8)", backgroundColor: "rgb(30, 30, 30)", color: "#675f5f" },
+            btn: { backgroundColor: "#1e1e1e", borderColor: "rgba(30, 30, 30, 0.8)" }
+            // hover: "#ffffff", normal: "#b0b4be",
+        },
+    },
+
+    // ── animecix.tv ─────────────────────────────────────────────────
+    animecix: {
+        match() {
+            const result = window.location.hostname.includes("animecix");
+            LOG(`[animecix] match() → ${result} | hostname: ${window.location.hostname}`);
+            return result;
+        },
+        isDarkTheme: () => true,
+
+        // URL /titles/.../episode/N formatındaysa izleme sayfasıdır.
+        // .more-videos elementi SPA nedeniyle sonradan gelir; URL yeterli.
+        isWatchPage() {
+            const result = /\/titles\/.*\/episode\//.test(window.location.pathname);
+            LOG(`[animecix] isWatchPage() → ${result} | path: ${window.location.pathname}`);
+            return result;
+        },
+
+        // Menüyü document.body'ye değil bu selectora bağla
+        mountSelector: '.more-videos',
+
+        async autoSelectTranslator(list) {
+            LOG(`[animecix] autoSelectTranslator() başladı | liste: ${JSON.stringify(list)}`);
+            LOG(`[animecix] .translator-card bekleniyor...`);
+            await waitForElmStable('.translator-card');
+            const buttons = [...document.querySelectorAll('.translator-card')];
+            LOG(`[animecix] Çevirmen butonları (${buttons.length} adet):`, buttons.map(b => b.querySelector('.translator-name')?.textContent?.trim()));
+            if (buttons.length === 0) { WARN('[animecix] Çevirmen butonu bulunamadı!'); return; }
+
+            const getName = b => normalizeStr(b.querySelector('.translator-name')?.textContent?.trim() || '');
+            const click = el => el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+
+            for (const name of list) {
+                const match = buttons.find(b => getName(b) === normalizeStr(name));
+                if (match) {
+                    LOG(`[animecix] Çevirmen eşleşti: "${name}" → tıklanıyor`);
+                    click(match);
+                    // Translator tıklanınca player listesi yeniden oluşur — bekle
+                    await waitForMutationThenStable('.video-card', 300, 6000);
+                    return;
+                }
+                WARN(`[animecix] Çevirmen bulunamadı: "${name}" | mevcut: ${buttons.map(getName).join(', ')}`);
+            }
+            // LOG(`[animecix] Eşleşme yok → ilk buton tıklanıyor: "${getName(buttons[0])}"`);
+            // click(buttons[0]);
+            await waitForMutationThenStable('.video-card', 300, 6000);
+        },
+
+        // async autoSelectPlayer(list) {
+        //     LOG(`[animecix] autoSelectPlayer() başladı | liste: ${JSON.stringify(list)}`);
+        //     LOG(`[animecix] .video-card bekleniyor...`);
+        //     await waitForElmStable('.video-card');
+        //     const buttons = [...document.querySelectorAll('.video-card')];
+        //     LOG(`[animecix] Player butonları (${buttons.length} adet):`, buttons.map(b => b.querySelector('.video-name')?.textContent?.trim()));
+        //     if (buttons.length === 0) { WARN('[animecix] Player butonu bulunamadı!'); return; }
+
+        //     const getName = b => normalizeStr(b.querySelector('.video-name')?.textContent?.trim() || '');
+        //     const click   = el => el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+
+        //     for (const name of list) {
+        //         const match = buttons.find(b => getName(b) === normalizeStr(name));
+        //         if (match) { LOG(`[animecix] Player eşleşti: "${name}" → tıklanıyor`); click(match); return; }
+        //         WARN(`[animecix] Player bulunamadı: "${name}"`);
+        //     }
+        //     LOG(`[animecix] Hiçbir player eşleşmedi → ilk buton tıklanıyor: "${getName(buttons[0])}"`);
+        //     click(buttons[0]);
+        // },
+
+        nextSel: '#cdk-overlay-3 > player > mat-sidenav-container > mat-sidenav-content > div.player-bottom.container > div.bottom-details > div.buttons > app-button:nth-child(5)',
+        prevSel: '#cdk-overlay-3 > player > mat-sidenav-container > mat-sidenav-content > div.player-bottom.container > div.bottom-details > div.buttons > app-button:nth-child(4)',
+
+        themeOverrides: {
+            // Menü artık fixed değil; .more-videos içine inline oturuyor
+            menu: {
+                background: "#ffffff0d",
+                backgroundColor: "unset",
+                position: "relative",
+                bottom: "unset", right: "unset",
+                width: "100%", maxWidth: "unset",
+                minHeight: "200px",
+                border: "1px solid rgba(255, 255, 255, .1)",
+                boxShadow: "unset",
+                borderRadius: "12px",
+                marginTop: "8px",
+            },
+            menuScroll: {
+                display: "flex", justifyContent: "start", alignItems: "flex-start", position: "unset", padding: "16px 20px", gap: "15px",
+            },
+            isBtn: {
+                width: "10%",
+                margin: "0",
+                marginTop: "0",
+                fontFamily: "Inter, Helvetica Neue, sans-serif",
+            },
+            activeBtn:  { backgroundColor: "#0074e4", color: "#fff", borderColor: "#005fb8" },
+            passiveBtn: { backgroundColor: "#ffffff14", color: "#aaa", borderColor: "rgba(255,255,255,0.1)" },
+            section: {
+                marginTop: "0",
+                backgroundColor: "#ffffff0f",
+                border: "1px solid rgba(255, 255, 255, .1)",
+            },
+            secHdr: {
+                backgroundImage: "unset",
+                backgroundColor: "unset",
+                borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+                color: "#e5e1e6",
+                fontFamily: "Inter, Helvetica Neue, sans-serif",
+            },
+            header: {
+                padding: "20px 0",
+                backgroundColor: "unset",
+                borderBottom: "1px solid rgba(255, 255, 255, .08)",
+                fontFamily: "Inter, Helvetica Neue, sans-serif"
+            },
+            inp: {
+                backgroundColor: "rgba(255, 255, 255, 0.06)",
+                border: "1px solid rgba(255, 255, 255, .1)",
+                fontFamily: "Inter, Helvetica Neue, sans-serif",
+            },
+            btn: {
+                background: "rgba(255, 255, 255, 0.08)",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+            }
+        },
+    },
+};
+
+// ═══════════════════════════════════════════════════════════════════
+//  UI YARDIMCI FONKSİYONLARI
+// ═══════════════════════════════════════════════════════════════════
+
+// Başlık + içerik alanı olan panel bölümü oluştur
+function createSection(theme, title) {
+    const wrap = make('div', { ...theme.section, borderRadius: "3px", overflow: "hidden" });
+    const hdr = make('div', {
+        ...theme.secHdr,
+        height: "25px", display: "flex",
+        alignItems: "center", justifyContent: "center",
+        fontSize: "13px", fontWeight: "bold",
+    }, { text: title });
+    const body = make('div', { padding: "6px 8px" });
+    wrap.appendChild(hdr);
+    wrap.appendChild(body);
+    return { wrap, hdr, body };
+}
+
+// + / Kaydet butonlu input listesi — Player veya Çevirmen için
+function createInputList(theme, storageKey, defaultVal, label) {
+    const { wrap, body } = createSection(theme, label + " Sırası");
+    const savedList = safeJsonArray(localStorage.getItem(storageKey), [defaultVal]);
+    let inputCount = 0;
+
+    // Buton satırı — en üstte, inputlardan önce
+    const btnRow = make('div', { display: "flex", gap: "6px", justifyContent: "center", marginBottom: "4px" });
+
+    const btnAdd = make('button', { ...theme.btn, flex: "0", borderRadius: "3px", fontFamily: "inherit" }, { text: "+" });
+    addHover(btnAdd, theme.hover, theme.normal);
+    addClickFlash(btnAdd);
+
+    const btnSave = make('button', { ...theme.btn, flex: "0.5", borderRadius: "3px", fontFamily: "inherit" }, { text: "Kaydet" });
+    btnSave.dataset.role = "save";
+    addHover(btnSave, theme.hover, theme.normal);
+    addClickFlash(btnSave);
+
+    btnRow.appendChild(btnAdd);
+    btnRow.appendChild(btnSave);
+    body.appendChild(btnRow);
+
+    // Input alanları — buton satırının altında
+    const inputArea = make('div');
+    body.appendChild(inputArea);
+
+    function addInput(value = "") {
+        inputCount++;
+        const inp = make('input', {
+            ...theme.inp, display: "block", margin: "5px auto", width: "85%"
+
+        }, {
+            type: "text",
+            id: storageKey + "Input" + inputCount,
+            name: storageKey + "Input",
+            placeholder: inputCount + ". " + label,
+            value,
+        });
+        inputArea.appendChild(inp);
+    }
+
+    savedList.forEach(v => addInput(v));
+
+    btnAdd.onclick = () => addInput();
+
+    btnSave.onclick = () => {
+        const result = [];
+        let i = 1;
+        while (document.getElementById(storageKey + "Input" + i)) {
+            const v = normalizeStr(document.getElementById(storageKey + "Input" + i).value.trim());
+            if (v) result.push(v);
+            i++;
+        }
+        localStorage.setItem(storageKey, JSON.stringify(result.length ? result : [defaultVal]));
+    };
+
+    return wrap;
+}
+
+// Ayarlar paneli — tuş atama + kısayol aktif/pasif
+function createAyarlarPanel(theme) {
+    const { wrap, hdr, body } = createSection(theme, "Ayarlar ▼");
+    const content = make('div', { display: "none" });
+    hdr.style.cursor = "pointer";
+    hdr.style.userSelect = "none";
+    hdr.onclick = () => {
+        const open = content.style.display !== "none";
+        content.style.display = open ? "none" : "block";
+        hdr.textContent = open ? "Ayarlar ▼" : "Ayarlar ▲";
+    };
+    wrap.appendChild(content);
+
+    const keyLabel = code => ({
+        NumpadAdd: "Numpad +", NumpadSubtract: "Numpad -",
+        NumpadMultiply: "Numpad *", NumpadDivide: "Numpad /",
+        NumpadEnter: "Numpad Enter",
+    })[code] || code;
+
+    let savedNextKey = localStorage.getItem("NextKey") || "NumpadAdd";
+    let savedPrevKey = localStorage.getItem("PrevKey") || "NumpadSubtract";
+    let keyNavActive = localStorage.getItem("KeyNavActive") !== "0";
+    let listeningInput = null;
+
+    function makeKeyInput(label, getKey, setKey, storageKey) {
+        const lbl = make('div', { ...theme.label, fontSize: "12px", textAlign: "center", marginBottom: "3px" }, { text: label });
+        const inp = make('input', { ...theme.inp, display: "block", margin: "0 auto 10px", cursor: "pointer", width: "85%" }, {
+            type: "text", readOnly: true,
+            value: keyLabel(getKey()),
+            title: "Değiştirmek için tıkla ve tuşa bas",
+        });
+        inp.addEventListener("click", () => {
+            listeningInput = { inp, storageKey, setKey };
+            inp.value = "Tuşa bas...";
+            inp.style.outline = "2px solid #b22222";
+        });
+        content.appendChild(lbl);
+        content.appendChild(inp);
+        return inp;
+    }
+
+    makeKeyInput("Sonraki Bölüm Tuşu", () => savedNextKey, v => { savedNextKey = v; }, "NextKey");
+    makeKeyInput("Önceki Bölüm Tuşu", () => savedPrevKey, v => { savedPrevKey = v; }, "PrevKey");
+
+    // Kısayol aktif/pasif
+    const row = make('div', { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "2px 4px 8px" });
+    const rowLabel = make('span', { ...theme.label, fontSize: "12px" }, { text: "Bölüm Kısayolu" });
+    const btnToggle = make('button', {});
+
+    function refreshToggle() {
+        btnToggle.textContent = keyNavActive ? "Aktif" : "Pasif";
+        if (keyNavActive) {
+            Object.assign(btnToggle.style, { backgroundColor: "#b22222", color: "#fff", borderColor: "#a01f1f" });
+        } else {
+            Object.assign(btnToggle.style, theme.btn);
+        }
+    }
+    refreshToggle();
+    btnToggle.onclick = () => {
+        keyNavActive = !keyNavActive;
+        localStorage.setItem("KeyNavActive", keyNavActive ? "1" : "0");
+        refreshToggle();
+    };
+    row.appendChild(rowLabel);
+    row.appendChild(btnToggle);
+    content.appendChild(row);
+
+    return { wrap, getNextKey: () => savedNextKey, getPrevKey: () => savedPrevKey, isNavActive: () => keyNavActive, getListening: () => listeningInput, clearListening: () => { listeningInput = null; } };
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  ANA KOD (SPA Uyumlu)
+// ═══════════════════════════════════════════════════════════════════
+
 (async () => {
-    let aktiflikDurumu = await getPermission();  // Burada await kullanıyoruz
-	let url = window.location.href;
+    LOG('=== TraHelper başlatılıyor ===');
+    const aktif = await getPermission();
+    if (!aktif) return;
+
+    let currentInjectedUrl = null; // Menünün hangi bölümde eklendiğini takip etmek için
+
+    // Menüyü oluşturup siteye enjekte eden asıl fonksiyon
+    async function injectMenuAndRun(site) {
+        LOG(`[${site.match.name || 'Site'}] İzleme sayfası algılandı → menü kuruluyor...`);
+
+        const baseTheme = buildTheme(site.isDarkTheme());
+        const theme = site.themeOverrides ? deepMerge(baseTheme, site.themeOverrides) : baseTheme;
+
+        const divMenu = make('div', { ...theme.menu, padding: "0" }, { id: "divMenu" });
+        const divHeader = make('div', {
+            ...theme.header, width: "100%", height: "28px", display: "flex",
+            alignItems: "center", justifyContent: "center", cursor: "pointer",
+            userSelect: "none", fontWeight: "bold", fontSize: "13px", flexShrink: "0",
+            boxSizing: "border-box",
+        }, { text: "Türk Anime Yardımcısı ▼" });
+
+        const divScroll = make('div', {
+            ...theme.menuScroll, overflowY: "auto", flex: "1",
+        }, { id: "divMenuScroll" });
+
+        // localStorage'dan önceki durumu oku (varsayılan: açık)
+        let menuOpen = localStorage.getItem('TraHelper_menuOpen') !== '0';
+
+        // ÇÖZÜM: Orijinal değerleri temanın kendisinden okuyup güvene alıyoruz
+        const scrollOpenDisplay = theme.menuScroll.display || 'block';
+        const originalMinHeight = theme.menu.minHeight || '430px';
+
+        // Başlangıç durumunu uygula (sayfa yüklendiğinde kapalıysa gizle)
+        if (!menuOpen) {
+            divScroll.style.display = 'none';
+            divMenu.style.minHeight = '0';
+            divMenu.style.height = '28px';
+            divHeader.textContent = 'Türk Anime Yardımcısı ▶';
+        }
+
+        divHeader.onclick = () => {
+            menuOpen = !menuOpen;
+            localStorage.setItem('TraHelper_menuOpen', menuOpen ? '1' : '0');
+            divScroll.style.display = menuOpen ? scrollOpenDisplay : 'none';
+            
+            // DÜZELTME BURADA: Boşluk ('') yerine temadaki orijinal yüksekliği geri veriyoruz
+            divMenu.style.minHeight = menuOpen ? originalMinHeight : '0';
+            
+            divMenu.style.height = menuOpen ? 'fit-content' : '28px';
+            divHeader.textContent = menuOpen ? 'Türk Anime Yardımcısı ▼' : 'Türk Anime Yardımcısı ▶';
+        };
+
+        divMenu.appendChild(divHeader);
+        divMenu.appendChild(divScroll);
+
+        const btnAktif = make('button', {
+            ...theme.isBtn,
+            ...theme.activeBtn,
+            display: "block",
+        }, { id: "divButton", text: "Aktif" });
+
+        btnAktif.onclick = () => {
+            const isAktif = btnAktif.textContent === "Aktif";
+            btnAktif.textContent = isAktif ? "Pasif" : "Aktif";
+            Object.assign(btnAktif.style, isAktif ? theme.passiveBtn : theme.activeBtn);
+            storage.local.set({ aktiflikDurumu: isAktif ? 0 : 1 });
+        };
+        divScroll.appendChild(btnAktif);
+
+        divScroll.appendChild(createInputList(theme, "Videoplayers", "sibnet", "Video Player"));
+        divScroll.appendChild(createInputList(theme, "Translators", "adonis", "Çevirmen"));
+
+        const ayarlar = createAyarlarPanel(theme);
+        divScroll.appendChild(ayarlar.wrap);
+
+        // Menüyü siteye bağla
+        if (site.mountSelector) {
+            LOG(`Menü "${site.mountSelector}" elementine bekleniyor...`);
+            const mountTarget = await waitForElmStable(site.mountSelector, 200);
+            mountTarget.appendChild(divMenu);
+            LOG(`Menü hedefe başarıyla bağlandı!`);
+        } else {
+            document.body.appendChild(divMenu);
+        }
+
+        // Klavye Olayları (Önceki event listener'ı ezmemesi için isimsiz fonk kullanmıyoruz)
+        document.addEventListener("keydown", e => {
+            const listening = ayarlar.getListening();
+            if (listening) {
+                e.preventDefault(); e.stopPropagation();
+                listening.setKey(e.code);
+                localStorage.setItem(listening.storageKey, e.code);
+                listening.inp.value = ({ NumpadAdd: "Numpad +", NumpadSubtract: "Numpad -" })[e.code] || e.code;
+                listening.inp.style.outline = "";
+                ayarlar.clearListening();
+                return;
+            }
+            if (!ayarlar.isNavActive()) return;
+            if (e.code === ayarlar.getNextKey() && site.nextSel) { waitForElm(site.nextSel).then(el => el.click()); }
+            else if (e.code === ayarlar.getPrevKey() && site.prevSel) { waitForElm(site.prevSel).then(el => el.click()); }
+        }, true);
+
+        // Otomatik seçim işlemleri
+        const vpList = safeJsonArray(localStorage.getItem("Videoplayers"), ["sibnet"]);
+        const tlList = safeJsonArray(localStorage.getItem("Translators"), ["adonis"]);
+        await site.autoSelectTranslator(tlList);
+        await site.autoSelectPlayer(vpList);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // SPA Bekçisi (Observer): Sayfa değişimlerini ve DOM'u sürekli kontrol eder
+    // ═══════════════════════════════════════════════════════════════════
+
+    let isInjecting = false; // KİLİT: Sonsuz döngüyü engeller
+
+    async function checkState() {
+        if (isInjecting) return; // Eğer şu an menü kurulum aşamasındaysa, diğer tüm bildirimleri yoksay!
+
+        const site = Object.values(SITES).find(s => s.match());
+        if (!site || !site.isWatchPage()) return; // İzleme sayfasında değilsek bir şey yapma
+
+        const currentUrl = window.location.href;
+        const existingMenu = document.getElementById('divMenu');
+
+        // Eğer yeni bir bölüme geçildiyse VEYA site menümüzü DOM'dan sildiyse yeniden kur
+        if (currentInjectedUrl !== currentUrl || !existingMenu) {
+            isInjecting = true; // KİLİDİ KAPAT (Başka kurulum isteklerini engelle)
+
+            if (existingMenu) existingMenu.remove(); // Varsa kalıntıları temizle
+            currentInjectedUrl = currentUrl;
+
+            // Site framework'ünün sayfayı oluşturmasına kısa bir süre tanı
+            setTimeout(async () => {
+                try {
+                    // Ekstra Güvenlik: Aynı anda iki tane oluşmaması için tekrar kontrol et
+                    if (!document.getElementById('divMenu')) {
+                        await injectMenuAndRun(site);
+                    }
+                } catch (error) {
+                    console.error("[TraHelper] Menü kurulumunda hata:", error);
+                } finally {
+                    isInjecting = false; // KİLİDİ AÇ (İşlem tamamen bitti, yeni değişiklikleri dinleyebilirsin)
+                }
+            }, 500);
+        }
+    }
+
+    // İlk açılışta kontrol et
+    checkState();
+
+    // Site içinde dolaşırken (SPA Navigation) değişiklikleri yakalamak için Observer
+    const spaObserver = new MutationObserver(() => checkState());
+    spaObserver.observe(document.body, { childList: true, subtree: true });
 
-	if (aktiflikDurumu) {
-		const elementt = document.querySelector('.sun');
-
-		let divMenu = document.createElement('div');
-		divMenu.style.height = "50%";
-		divMenu.id = "divMenu";
-
-		if (getComputedStyle(elementt).display.toString() == "inline") {
-			divMenu.style.backgroundColor = "#9E9E9E";
-			divMenu.style.background = "#eee!important";
-			divMenu.style.color = "#666666";
-			divMenu.style.boxShadow = "0 0 5px #222";
-			divMenu.style.backgroundImage = "linear-gradient(to bottom,rgba(255,255,255,0.9) 10%,rgba(255,255,255,0.5) 100%)";
-		} else {
-			divMenu.style.backgroundColor = "#1e2026";
-			divMenu.style.background = "#1E2026!important";
-			divMenu.style.color = "#c5c8ce";
-			divMenu.style.border = "1px solid #17191f";
-			divMenu.style.boxShadow = "0 0 5px #22242b";
-		}
-
-		document.body.appendChild(divMenu);
-
-		let divHeader = document.createElement('div');
-		divHeader.innerHTML = "Otomatik İşlem";
-		divHeader.style.height = "6%";
-		divHeader.id = "divHeader";
-
-		if (getComputedStyle(elementt).display.toString() != "inline") {
-			divHeader.style.backgroundColor = "#17191f";
-			divHeader.style.color = "#c5c8ce!important";
-			divHeader.style.boxShadow = "0 0 5px #22242b!important";
-		}
-
-		document.getElementById("divMenu").appendChild(divHeader);
-
-		let oldHeight = divMenu.style.height;
-
-		divHeader.onclick = function () {
-			if (divMenu.style.height == oldHeight) {
-				divMenu.style.height = "3%";
-				divHeader.style.height = "100%";
-				divButton.style.display = "none";
-			} else {
-				divMenu.style.height = oldHeight;
-				divHeader.style.height = "6%";
-				divButton.style.display = "flex";
-			}
-		}
-
-		let divMenuScroll = document.createElement('div');
-		divMenuScroll.id = "divMenuScroll";
-
-		document.getElementById("divMenu").appendChild(divMenuScroll);
-
-		let divButton = document.createElement('Button');
-		divButton.id = "divButton";
-		divButton.innerHTML = "Aktif";
-
-		divButton.onclick = function () {
-			if (divButton.innerHTML == "Aktif") {
-				if (getComputedStyle(elementt).display.toString() == "inline") {
-					divButton.innerHTML = "Pasif";
-					divButton.style.backgroundColor = "#f0f0f0";
-					divButton.style.color = "#333";
-					divButton.style.borderColor = "#ccc rgba(0,0,0,.19) rgba(0,0,0,.18)";
-					divButton.style.backgroundImage = "linear-gradient(to bottom,rgba(255,255,255,0.9) 10%,rgba(255,255,255,0.1) 100%)";
-				} else {
-					divButton.innerHTML = "Pasif";
-					divButton.style.backgroundColor = "#1e2026";
-					divButton.style.color = "#c5c8ce";
-					divButton.style.borderColor = "#17191f";
-				}
-
-				storage.local.set({ "aktiflikDurumu": 0 });
-			} else {
-				divButton.innerHTML = "Aktif";
-				divButton.style.backgroundColor = "#b22222";
-				divButton.style.color = "#fff";
-				divButton.style.borderColor = "#a01f1f";
-				divButton.style.removeProperty("background-image");
-				
-				storage.local.set({ "aktiflikDurumu": 1 });
-			}
-		}
-
-		document.getElementById("divMenuScroll").appendChild(divButton);
-
-		let divVideo = document.createElement('div');
-		divVideo.id = "divVideo";
-		divVideo.style.height = "120px";
-
-		if (getComputedStyle(elementt).display.toString() !== "inline") {
-			divVideo.style.backgroundColor = "#23252c";
-			divVideo.style.border = "1px solid #17191f";
-		}
-
-		document.getElementById("divMenuScroll").appendChild(divVideo);
-
-		let divVideoHeader = document.createElement('div');
-		divVideoHeader.id = "divVideoHeader";
-		divVideoHeader.innerHTML = "Player Sırası";
-
-		if (getComputedStyle(elementt).display.toString() != "inline") {
-			divVideoHeader.style.backgroundColor = "#17191f";
-			divVideoHeader.style.backgroundImage = "-webkit-linear-gradient(#17191f,#17191f)";
-			divVideoHeader.style.color = "#fff";
-			divVideoHeader.style.borderBottom = "0px";
-		}
-
-		document.getElementById("divVideo").appendChild(divVideoHeader);
-
-		let divAddVideoButton = document.createElement('Button');
-		divAddVideoButton.id = "divAddVideoButton";
-		divAddVideoButton.innerHTML = "+";
-
-		if (getComputedStyle(elementt).display.toString() !== "inline") {
-			divAddVideoButton.style.background = "#1e2026";
-			divAddVideoButton.style.border = "1px solid #17191f";
-			divAddVideoButton.style.color = "#c5c8ce";
-
-			let addMainColor = divAddVideoButton.style.color;
-
-			divAddVideoButton.addEventListener("mouseenter", (event) => {
-				divAddVideoButton.style.color = "white";
-			});
-
-			divAddVideoButton.addEventListener("mouseleave", (event) => {
-				divAddVideoButton.style.color = addMainColor;
-			});
-		} else {
-			let addMainColor = "#2c2c2c";
-
-			divAddVideoButton.addEventListener("mouseenter", (event) => {
-				divAddVideoButton.style.color = "black";
-			});
-
-			divAddVideoButton.addEventListener("mouseleave", (event) => {
-				divAddVideoButton.style.color = addMainColor;
-			});
-		}
-
-		let divVideoOldHeight = 120;
-		let divNum = 1;
-
-		let divVideoInput = document.createElement('input'); // input video player
-		divVideoInput.type = "text";
-		divVideoInput.id = "divVideoInput" + divNum;
-		divVideoInput.name = "divVideoInput";
-		divVideoInput.placeholder = divNum.toString() + ". Video Player";
-
-		divVideoInput.style.marginLeft = "auto";
-		divVideoInput.style.marginRight = "auto";
-		divVideoInput.style.marginTop = "15px";
-
-		divAddVideoButton.onclick = function () {
-			divNum = divNum + 1;
-			divVideoOldHeight = divVideoOldHeight + 40;
-			let divVideoInput = document.createElement('input'); // input video player
-			divVideo.style.height = divVideoOldHeight.toString() + "px";
-
-			divVideoInput.style.marginLeft = "auto";
-			divVideoInput.style.marginRight = "auto";
-			divVideoInput.style.marginTop = "15px";
-			divVideoInput.type = "text";
-			divVideoInput.id = "divVideoInput" + divNum.toString();
-			divVideoInput.name = "divVideoInput";
-			divVideoInput.placeholder = divNum.toString() + ". Video Player";
-
-			document.getElementById("divVideo").appendChild(divVideoInput);
-		}
-
-		document.getElementById("divVideo").appendChild(divAddVideoButton);
-
-		let divSaveVideoButton = document.createElement('Button');
-		divSaveVideoButton.id = "divSaveVideoButton";
-		divSaveVideoButton.innerHTML = "Kaydet";
-
-		if (getComputedStyle(elementt).display.toString() !== "inline") {
-			divSaveVideoButton.style.background = "#1e2026";
-			divSaveVideoButton.style.border = "1px solid #17191f";
-			divSaveVideoButton.style.color = "#c5c8ce";
-
-			let saveMainColor = divSaveVideoButton.style.color;
-
-			divSaveVideoButton.addEventListener("mouseenter", (event) => {
-				divSaveVideoButton.style.color = "white";
-			});
-
-			divSaveVideoButton.addEventListener("mouseleave", (event) => {
-				divSaveVideoButton.style.color = saveMainColor;
-			});
-
-			divSaveVideoButton.addEventListener("onclick", (event) => {
-				divSaveVideoButton.style.color = "#FF0000";
-			});
-		} else {
-			let saveMainColor = "#2c2c2c";
-
-			divSaveVideoButton.addEventListener("mouseenter", (event) => {
-				divSaveVideoButton.style.color = "black";
-			});
-
-			divSaveVideoButton.addEventListener("mouseleave", (event) => {
-				divSaveVideoButton.style.color = saveMainColor;
-			});
-		}
-
-		divSaveVideoButton.onclick = function () {
-			localStorage.setItem("Videoplayers", "testElement");
-
-			let videoplayerArray = [];
-			let kl = 1;
-			while (kl < 50) {
-				if (document.getElementById("divVideoInput" + kl) == null) {
-					localStorage.setItem("Videoplayers", videoplayerArray);
-					break;
-				} else if ((document.getElementById("divVideoInput" + kl).value.toString() == "" || document.getElementById("divVideoInput" + kl).value.toString() == " ")) {
-					// do nothing
-				} else {
-					videoplayerArray.push(document.getElementById("divVideoInput" + kl).value.toLowerCase());
-				}
-				kl = kl + 1;
-			}
-			if (videoplayerArray == "") localStorage.setItem("Videoplayers", "sibnet");
-		}
-
-		document.getElementById("divVideo").appendChild(divSaveVideoButton);
-
-		let divTranslator = document.createElement('div');
-		divTranslator.id = "divTranslator";
-		divTranslator.style.height = "120px";
-
-		if (getComputedStyle(elementt).display.toString() !== "inline") {
-			divTranslator.style.backgroundColor = "#23252c";
-			divTranslator.style.border = "1px solid #17191f";
-		}
-
-		document.getElementById("divMenuScroll").appendChild(divTranslator);
-
-		let divTranslatorHeader = document.createElement('div');
-		divTranslatorHeader.id = "divTranslatorHeader";
-		divTranslatorHeader.innerHTML = "Çevirmen Sırası";
-
-		if (getComputedStyle(elementt).display.toString() != "inline") {
-			divTranslatorHeader.style.backgroundColor = "#17191f";
-			divTranslatorHeader.style.backgroundImage = "-webkit-linear-gradient(#17191f,#17191f)";
-			divTranslatorHeader.style.color = "#fff";
-			divTranslatorHeader.style.borderBottom = "0px";
-		}
-
-		document.getElementById("divTranslator").appendChild(divTranslatorHeader);
-
-		let divAddTranslatorButton = document.createElement('Button');
-		divAddTranslatorButton.id = "divAddTranslatorButton";
-		divAddTranslatorButton.innerHTML = "+";
-
-		if (getComputedStyle(elementt).display.toString() !== "inline") {
-			divAddTranslatorButton.style.background = "#1e2026";
-			divAddTranslatorButton.style.border = "1px solid #17191f";
-			divAddTranslatorButton.style.color = "#c5c8ce";
-
-			let addMainColor = divAddTranslatorButton.style.color;
-
-			divAddTranslatorButton.addEventListener("mouseenter", (event) => {
-				divAddTranslatorButton.style.color = "white";
-			});
-
-			divAddTranslatorButton.addEventListener("mouseleave", (event) => {
-				divAddTranslatorButton.style.color = addMainColor;
-			});
-		} else {
-			let addMainColor = "#2c2c2c";
-
-			divAddTranslatorButton.addEventListener("mouseenter", (event) => {
-				divAddTranslatorButton.style.color = "black";
-			});
-
-			divAddTranslatorButton.addEventListener("mouseleave", (event) => {
-				divAddTranslatorButton.style.color = addMainColor;
-			});
-		}
-
-		let divTranslatorOldHeight = 120;
-		let divTranslatorNum = 1;
-
-		let divTranslatorInput = document.createElement('input'); // input video player
-		divTranslatorInput.type = "text";
-		divTranslatorInput.id = "divTranslatorInput" + divTranslatorNum;
-		divTranslatorInput.name = "divTranslatorInput";
-		divTranslatorInput.placeholder = divTranslatorNum.toString() + ". Çevirmen";
-
-		divTranslatorInput.style.marginLeft = "auto";
-		divTranslatorInput.style.marginRight = "auto";
-		divTranslatorInput.style.marginTop = "15px";
-
-		divAddTranslatorButton.onclick = function () {
-			divTranslatorNum = divTranslatorNum + 1;
-			divTranslatorOldHeight = divTranslatorOldHeight + 40;
-			divTranslatorInput = document.createElement('input'); // input translator
-			divTranslator.style.height = divTranslatorOldHeight.toString() + "px";
-
-			divTranslatorInput.style.marginLeft = "auto";
-			divTranslatorInput.style.marginRight = "auto";
-			divTranslatorInput.style.marginTop = "15px";
-			divTranslatorInput.type = "text";
-			divTranslatorInput.id = "divTranslatorInput" + divTranslatorNum.toString();
-			divTranslatorInput.name = "divTranslatorInput";
-			divTranslatorInput.placeholder = divTranslatorNum.toString() + ". Çevirmen";
-
-			document.getElementById("divTranslator").appendChild(divTranslatorInput);
-		}
-
-
-		document.getElementById("divTranslator").appendChild(divAddTranslatorButton);
-
-		let divSaveTranslatorButton = document.createElement('Button');
-		divSaveTranslatorButton.id = "divSaveTranslatorButton";
-		divSaveTranslatorButton.innerHTML = "Kaydet";
-
-		if (getComputedStyle(elementt).display.toString() !== "inline") {
-			divSaveTranslatorButton.style.background = "#1e2026";
-			divSaveTranslatorButton.style.border = "1px solid #17191f";
-			divSaveTranslatorButton.style.color = "#c5c8ce";
-
-			let saveMainColor = divSaveTranslatorButton.style.color;
-
-			divSaveTranslatorButton.addEventListener("mouseenter", (event) => {
-				divSaveTranslatorButton.style.color = "white";
-			});
-
-			divSaveTranslatorButton.addEventListener("mouseleave", (event) => {
-				divSaveTranslatorButton.style.color = saveMainColor;
-			});
-
-			divSaveTranslatorButton.addEventListener("click", (event) => {
-				divSaveTranslatorButton.style.color = "#FF0000";
-			});
-		} else {
-			let saveMainColor = "#2c2c2c";
-
-			divSaveTranslatorButton.addEventListener("mouseenter", (event) => {
-				divSaveTranslatorButton.style.color = "black";
-			});
-
-			divSaveTranslatorButton.addEventListener("mouseleave", (event) => {
-				divSaveTranslatorButton.style.color = saveMainColor;
-			});
-		}
-
-		divSaveTranslatorButton.onclick = function () {
-			localStorage.setItem("Translators", "testElement");
-
-			let translatorArray = [];
-			let lk = 1;
-			while (lk < 50) {
-				let inputElement = document.getElementById("divTranslatorInput" + lk);
-				if (!inputElement) {
-					localStorage.setItem("Translators", JSON.stringify(translatorArray));
-					break;
-				}
-
-				let value = inputElement.value.trim().toLowerCase();
-				if (value) {
-					translatorArray.push(value);
-				}
-				lk = lk + 1;
-			}
-			if (translatorArray == "") localStorage.setItem("Translators", "adonis");
-		}
-
-		document.getElementById("divTranslator").appendChild(divSaveTranslatorButton);
-
-		if (localStorage.getItem("Videoplayers") == null) {
-			divVideoInput.value = "sibnet";
-			document.getElementById("divVideo").appendChild(divVideoInput);
-		} else {
-			divVideoOldHeight = divVideoOldHeight - 40;
-			divNum = 0
-			let il = 0;
-			let vpList = localStorage.getItem("Videoplayers").split(",");
-
-			while (il < vpList.length) {
-				if (vpList[il] == undefined || vpList == null) {
-					console("TraHelper: Bir Hata Oluştu Video Player Listesini Tekrar Kaydetmeyi Deneyin.");
-					divVideoInput.value = "sibnet";
-					document.getElementById("divVideo").appendChild(divVideoInput);
-					break;
-				} else if (vpList[il] == "") {
-					//do nothing
-				} else {
-					divNum = divNum + 1;
-					divVideoOldHeight = divVideoOldHeight + 40;
-					divVideoInput = document.createElement('input'); // input video player
-					divVideo.style.height = divVideoOldHeight.toString() + "px";
-
-					divVideoInput.style.marginLeft = "auto";
-					divVideoInput.style.marginRight = "auto";
-					divVideoInput.style.marginTop = "15px";
-					divVideoInput.type = "text";
-					divVideoInput.id = "divVideoInput" + divNum.toString();
-					divVideoInput.name = "divVideoInput";
-					divVideoInput.placeholder = divNum.toString() + ". Video Player";
-
-					divVideoInput.value = vpList[il];
-					document.getElementById("divVideo").appendChild(divVideoInput);
-				}
-
-				il = il + 1;
-			}
-		}
-
-		if (localStorage.getItem("Translators") == null) { //çevirmen sekmesi için ilk açılış
-			divTranslatorInput.value = "adonis";
-			localStorage.setItem("Translators", JSON.stringify(["adonis"]));
-			document.getElementById("divTranslator").appendChild(divTranslatorInput);
-		} else {
-			divTranslatorOldHeight = divTranslatorOldHeight - 40;
-			divTranslatorNum = 0;
-			let li = 0;
-			let tlRaw = localStorage.getItem("Translators");
-			let tlList;
-			try {
-				tlList = JSON.parse(tlRaw);
-				// JSON.parse("adonis") string döndürür, array değil — düzelt
-				if (!Array.isArray(tlList)) {
-					tlList = tlRaw ? tlRaw.split(",").map(s => s.trim()).filter(Boolean) : ["adonis"];
-				}
-			} catch (e) {
-				// Geçersiz JSON ise virgülle ayrılmış string olarak oku
-				tlList = tlRaw ? tlRaw.split(",").map(s => s.trim()).filter(Boolean) : ["adonis"];
-			}
-
-			while (li < tlList.length) {
-				if (tlList[li] == undefined || tlList == null) {
-					console.log("Türk Anime Yardımcısı: Bir Hata Oluştu Çevirmen Listesini Tekrar Kaydetmeyi Deneyin.");
-					divTranslatorInput.value = "adonis";
-					document.getElementById("divTranslator").appendChild(divTranslatorInput);
-					break;
-				} else if (tlList[li] == "") {
-					//do nothing
-				} else {
-					divTranslatorNum = divTranslatorNum + 1;
-					divTranslatorOldHeight = divTranslatorOldHeight + 40;
-					divTranslatorInput = document.createElement('input'); //input translator
-					divTranslator.style.height = divTranslatorOldHeight.toString() + "px";
-
-					divTranslatorInput.style.marginLeft = "auto";
-					divTranslatorInput.style.marginRight = "auto";
-					divTranslatorInput.style.marginTop = "15px";
-					divTranslatorInput.type = "text";
-					divTranslatorInput.id = "divTranslatorInput" + divTranslatorNum.toString();
-					divTranslatorInput.name = "divTranslatorInput";
-					divTranslatorInput.placeholder = divTranslatorNum.toString() + ". Çevirmen";
-
-					divTranslatorInput.value = tlList[li];
-					document.getElementById("divTranslator").appendChild(divTranslatorInput);
-				}
-
-				li = li + 1;
-			}
-		}
-
-
-		// ── AYARLAR PANELİ ──────────────────────────────────────────────
-		let divAyarlar = document.createElement('div');
-		divAyarlar.id = "divAyarlar";
-		divAyarlar.style.height = "auto";
-		divAyarlar.style.padding = "0 0 0 0";
-		divAyarlar.style.margin = "auto";
-		divAyarlar.style.width = "80%";
-		divAyarlar.style.borderRadius = "4px";
-
-		if (getComputedStyle(elementt).display.toString() !== "inline") {
-			divAyarlar.style.backgroundColor = "#23252c";
-			divAyarlar.style.border = "1px solid #17191f";
-		}
-
-		document.getElementById("divMenuScroll").appendChild(divAyarlar);
-
-		// Ayarlar başlık (tıklanınca aç/kapa)
-		let divAyarlarHeader = document.createElement('div');
-		divAyarlarHeader.id = "divAyarlarHeader";
-		divAyarlarHeader.innerHTML = "Ayarlar";
-		divAyarlarHeader.style.display = "flex";
-		divAyarlarHeader.style.cursor = "pointer";
-		divAyarlarHeader.style.userSelect = "none";
-		divAyarlarHeader.style.alignItems = "center";
-		divAyarlarHeader.style.justifyContent = "center";
-		divAyarlarHeader.style.height = "25px";
-
-		if (getComputedStyle(elementt).display.toString() != "inline") {
-			divAyarlarHeader.style.backgroundColor = "#17191f";
-			divAyarlarHeader.style.backgroundImage = "-webkit-linear-gradient(#17191f,#17191f)";
-			divAyarlarHeader.style.color = "#fff";
-			divAyarlarHeader.style.borderBottom = "0px";
-		}
-
-		document.getElementById("divAyarlar").appendChild(divAyarlarHeader);
-
-		// Ayarlar içerik wrapper (aç/kapa için)
-		let divAyarlarContent = document.createElement('div');
-		divAyarlarContent.id = "divAyarlarContent";
-		divAyarlarContent.style.display = "none"; // başlangıçta kapalı
-		divAyarlarContent.style.padding = "10px 8px 0 8px";
-		document.getElementById("divAyarlar").appendChild(divAyarlarContent);
-
-		divAyarlarHeader.onclick = function () {
-			if (divAyarlarContent.style.display === "none") {
-				divAyarlarContent.style.display = "block";
-			} else {
-				divAyarlarContent.style.display = "none";
-			}
-		};
-
-		// ── Bölüm geçme tuşları ─────────────────────────────────────────
-		let savedNextKey = localStorage.getItem("NextKey") || "NumpadAdd";
-		let savedPrevKey = localStorage.getItem("PrevKey") || "NumpadSubtract";
-		let keyNavActive = localStorage.getItem("KeyNavActive") !== "0"; // varsayılan aktif
-
-		// Tuş etiketi yardımcı fonksiyon
-		function keyLabel(code) {
-			const map = {
-				"NumpadAdd": "Numpad +",
-				"NumpadSubtract": "Numpad -",
-				"NumpadMultiply": "Numpad *",
-				"NumpadDivide": "Numpad /",
-				"NumpadEnter": "Numpad Enter",
-			};
-			return map[code] || code;
-		}
-
-		// — Sonraki bölüm tuşu —
-		let labelNext = document.createElement('div');
-		labelNext.innerHTML = "Sonraki Bölüm";
-		labelNext.style.display = "flex";
-		labelNext.style.justifyContent = "center";
-		labelNext.style.fontSize = "12px";
-		labelNext.style.marginBottom = "5px";
-		labelNext.style.marginLeft = "auto";
-		labelNext.style.marginRight = "auto";
-		if (getComputedStyle(elementt).display.toString() !== "inline") {
-			labelNext.style.color = "#c5c8ce";
-		}
-		divAyarlarContent.appendChild(labelNext);
-
-		let inputNextKey = document.createElement('input');
-		inputNextKey.type = "text";
-		inputNextKey.id = "inputNextKey";
-		inputNextKey.readOnly = true;
-		inputNextKey.value = keyLabel(savedNextKey);
-		inputNextKey.placeholder = "Tuşa bas...";
-		inputNextKey.style.marginBottom = "15px";
-		inputNextKey.style.marginLeft = "auto";
-		inputNextKey.style.marginRight = "auto";
-		inputNextKey.style.cursor = "pointer";
-		inputNextKey.title = "Değiştirmek için tıkla ve tuşa bas";
-		divAyarlarContent.appendChild(inputNextKey);
-
-		// — Önceki bölüm tuşu —
-		let labelPrev = document.createElement('div');
-		labelPrev.innerHTML = "Önceki Bölüm";
-		labelPrev.style.display = "flex";
-		labelPrev.style.justifyContent = "center";
-		labelPrev.style.fontSize = "12px";
-		labelPrev.style.marginBottom = "5px";
-		if (getComputedStyle(elementt).display.toString() !== "inline") {
-			labelPrev.style.color = "#c5c8ce";
-		}
-		divAyarlarContent.appendChild(labelPrev);
-
-		let inputPrevKey = document.createElement('input');
-		inputPrevKey.type = "text";
-		inputPrevKey.id = "inputPrevKey";
-		inputPrevKey.readOnly = true;
-		inputPrevKey.value = keyLabel(savedPrevKey);
-		inputPrevKey.placeholder = "Tuşa bas...";
-		inputPrevKey.style.marginBottom = "15px";
-		inputPrevKey.style.marginLeft = "auto";
-		inputPrevKey.style.marginRight = "auto";
-		inputPrevKey.style.cursor = "pointer";
-		inputPrevKey.title = "Değiştirmek için tıkla ve tuşa bas";
-		divAyarlarContent.appendChild(inputPrevKey);
-
-		// Tuş dinleme: inputa tıklanınca keydown yakala
-		let listeningInput = null;
-
-		function startListening(inputEl) {
-			listeningInput = inputEl;
-			inputEl.value = "Tuşa bas...";
-			inputEl.style.outline = "2px solid #b22222";
-		}
-
-		inputNextKey.addEventListener("click", () => startListening(inputNextKey));
-		inputPrevKey.addEventListener("click", () => startListening(inputPrevKey));
-
-		document.addEventListener("keydown", function captureKey(e) {
-			if (!listeningInput) return;
-			e.preventDefault();
-			e.stopPropagation();
-			if (listeningInput === inputNextKey) {
-				savedNextKey = e.code;
-				localStorage.setItem("NextKey", e.code);
-			} else {
-				savedPrevKey = e.code;
-				localStorage.setItem("PrevKey", e.code);
-			}
-			listeningInput.value = keyLabel(e.code);
-			listeningInput.style.outline = "";
-			listeningInput = null;
-		}, true); // capture phase — diğer keydown'dan önce
-
-		// — Aktif / Pasif toggle —
-		let divKeyNavToggle = document.createElement('div');
-		divKeyNavToggle.style.display = "flex";
-		divKeyNavToggle.style.alignItems = "center";
-		divKeyNavToggle.style.gap = "8px";
-		divKeyNavToggle.style.marginBottom = "4px";
-		divKeyNavToggle.style.justifyContent = "center";
-		divKeyNavToggle.style.width = "100%";
-		divAyarlarContent.appendChild(divKeyNavToggle);
-
-		let labelKeyNav = document.createElement('span');
-		labelKeyNav.innerHTML = "Bölüm Kısayolu";
-		labelKeyNav.style.fontSize = "12px";
-		labelKeyNav.style.marginLeft = "15px";
-		if (getComputedStyle(elementt).display.toString() !== "inline") {
-			labelKeyNav.style.color = "#c5c8ce";
-		}
-		divKeyNavToggle.appendChild(labelKeyNav);
-
-		let btnKeyNavToggle = document.createElement('button');
-		btnKeyNavToggle.id = "btnKeyNavToggle";
-		btnKeyNavToggle.style.marginRight = "15px";
-		btnKeyNavToggle.style.padding = "5px 5px";
-		btnKeyNavToggle.style.border = "1px solid #ccc";
-		btnKeyNavToggle.style.borderRadius = "4px";
-		btnKeyNavToggle.style.lineHeight = "1";
-
-		function updateToggleStyle() {
-			if (keyNavActive) {
-				btnKeyNavToggle.innerHTML = "Aktif";
-				btnKeyNavToggle.style.backgroundColor = "#b22222";
-				btnKeyNavToggle.style.color = "#fff";
-				btnKeyNavToggle.style.borderColor = "#a01f1f";
-			} else {
-				btnKeyNavToggle.innerHTML = "Pasif";
-				if (getComputedStyle(elementt).display.toString() == "inline") {
-					btnKeyNavToggle.style.backgroundColor = "#f0f0f0";
-					btnKeyNavToggle.style.color = "#333";
-					btnKeyNavToggle.style.borderColor = "#ccc";
-				} else {
-					btnKeyNavToggle.style.backgroundColor = "#1e2026";
-					btnKeyNavToggle.style.color = "#c5c8ce";
-					btnKeyNavToggle.style.borderColor = "#17191f";
-				}
-			}
-		}
-
-		updateToggleStyle();
-
-		btnKeyNavToggle.onclick = function () {
-			keyNavActive = !keyNavActive;
-			localStorage.setItem("KeyNavActive", keyNavActive ? "1" : "0");
-			updateToggleStyle();
-		};
-
-		divKeyNavToggle.appendChild(btnKeyNavToggle);
-		// ── AYARLAR PANELİ SONU ─────────────────────────────────────────
-
-		let urlArrayDot = url.split(".");
-		let urlArraySlash = urlArrayDot[2].split("/");
-
-		function waitForElm(selector) {
-			return new Promise(resolve => {
-				if (document.querySelector(selector)) {
-					return resolve(document.querySelector(selector));
-				}
-
-				const observer = new MutationObserver(mutations => {
-					if (document.querySelector(selector)) {
-						resolve(document.querySelector(selector));
-						observer.disconnect();
-					}
-				});
-
-				observer.observe(document.body, {
-					childList: true,
-					subtree: true
-				});
-			});
-		}
-
-		async function searchVPButtons(searchVariable) {
-			const butonTablosu = await waitForElm('#videodetay > div > div:nth-child(4)');
-			let butonlarElement = [].slice.call(butonTablosu.children);
-			let butonlarArray = [];
-			let canClick = 0;
-
-			let i = 0;
-			while (i < butonlarElement.length) {
-				let içerik = (butonlarElement[i].innerHTML).split(" ");
-				butonlarArray.push(içerik[içerik.length - 1]);
-
-				if (içerik[içerik.length - 1].toLowerCase() == searchVariable.toLowerCase()) {
-					butonlarElement[i].click();
-					canClick = 1;
-					break;
-				}
-				i = i + 1;
-			}
-			return canClick;
-		}
-
-		async function x() {
-			let kl = 0;
-			let vpList = localStorage.getItem("Videoplayers").split(",");
-
-			while (kl < vpList.length) {
-				if (await searchVPButtons(vpList[kl]) == 1) {
-					var videoPlayer = vpList[kl];
-					break;
-				} else {
-					kl = kl + 1;
-				}
-			}
-
-			return videoPlayer.toString();
-		}
-
-		async function y() {
-			let çeviriTablosu1 = document.querySelector('#videodetay > div > div.btn-group.pull-right > button');
-			çeviriTablosu1.click();
-		}
-
-		async function searchTLButtons(searchVariable) {
-			const butonTablosu = await waitForElm('#videodetay > div > div.pull-right');
-			let butonlarElement = [].slice.call(butonTablosu.children);
-			let butonlarArray = [];
-			let canClick = 0;
-
-			let i = 0;
-			while (i < butonlarElement.length) {
-				let içerik = (butonlarElement[i].innerHTML).split(" ");
-				butonlarArray.push(içerik[içerik.length - 1]);
-
-				if (içerik[içerik.length - 1].toLowerCase() == searchVariable.toLowerCase()) {
-					butonlarElement[i].click();
-					canClick = 1;
-					break;
-				}
-				i = i + 1;
-			}
-			return canClick;
-		}
-
-		async function z() {
-			let kl = 0;
-			let tList = JSON.parse(localStorage.getItem("Translators"));
-			let çeviriTablosu2 = document.querySelector('#videodetay > div > div.pull-right > button:nth-child(1)');
-
-			while (kl < tList.length) {
-				if (await searchTLButtons(tList[kl]) == 1) {
-					break; //Tek çevirmen bulunuyor
-				} else if (kl == parseInt(tList.length) - 1) {
-					çeviriTablosu2.click();
-					break;
-				} else {
-					kl = kl + 1;
-				}
-			}
-		}
-
-		if (urlArraySlash[1] == "video") { //izleme sayfasına girildiğinde.
-			const butonCheck = document.querySelector('#videodetay > div > div:nth-child(4)');
-			let çeviriTablosu1 = document.querySelector('#videodetay > div > div.btn-group.pull-right > button');
-			let çeviriTablosu2 = document.querySelector('#videodetay > div > div.pull-right > button:nth-child(1)');
-
-			if (butonCheck !== null) {
-				x.call();
-			} else if (çeviriTablosu1 !== null) {
-				y.call();
-				x.call();
-			} else if (çeviriTablosu2 !== null) {
-				z.call();
-				x.call();
-			}
-		}
-
-		// İframe (video player) tıklandığında focus çalındığı için
-		// klavye olayları ana sayfaya gelmiyor. Blur tetiklendiğinde
-		// focus iframe'den ana pencereye geri alınıyor.
-		window.addEventListener('blur', function () {
-			setTimeout(function () {
-				if (document.activeElement && document.activeElement.tagName === 'IFRAME') {
-					window.focus();
-				}
-			}, 0);
-		});
-
-		// Bölüm geçme kısayolu — tuşlar ve aktif/pasif durumu Ayarlar panelinden kontrol edilir
-		document.addEventListener("keydown", async (event) => {
-			if (!keyNavActive || listeningInput) return; // pasifse veya tuş dinleniyorsa atla
-			if (event.code === savedNextKey) {
-				const nextEpisode = await waitForElm('#arkaplan > div:nth-child(3) > div.col-xs-8 > div > div:nth-child(3) > div > div.panel-footer.clearfix > div:nth-child(3) > a:nth-child(2)');
-				nextEpisode.click();
-			} else if (event.code === savedPrevKey) {
-				const prevEpisode = await waitForElm('#arkaplan > div:nth-child(3) > div.col-xs-8 > div > div:nth-child(3) > div > div.panel-footer.clearfix > div:nth-child(3) > a:nth-child(1)');
-				prevEpisode.click();
-			}
-		});
-
-	}
 })();
