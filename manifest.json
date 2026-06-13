@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
-    "name": "TürkAnime Yardımcısı (turkanime anizm animecix)",
+    "name": "TürkAnime Yardımcısı",
     "description": "Türk anime izleme platformlarını geliştiren bir tarayıcı eklentisi.",
-    "version": "3.6.2",
+    "version": "4.2",
     "icons": {
         "16":"/icons/16px.png",
         "48":"/icons/48px.png",
@@ -26,9 +26,11 @@
                 "https://*.turkanime.tv/*",
                 "https://*.tranimeizle.io/*",
                 "https://*.anizm.net/*",
-                "https://*.animecix.tv/*"
+                "https://*.animecix.tv/*",
+                "https://asyaanimeleri.top/*",
+                "https://openani.me/*"
             ],
-            "css": ["./css/main.css"],
+            "css": ["./css/trahelper.css"],
 			"js": ["./js/inject.js"]
         }
     ],

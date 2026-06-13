@@ -48,7 +48,7 @@ function make(tag, styles = {}, attrs = {}) {
         if (k === "text") e.textContent = v;
         else e[k] = v;
     });
-    return e;
+        return e;
 }
 
 // Elementi bekle VE DOM değişimleri quietMs boyunca duruncaya kadar bekle.
@@ -69,7 +69,7 @@ function waitForElmStable(selector, quietMs = 150) {
             const found = document.querySelector(selector);
             if (found) onFound(found);
         });
-        obs.observe(document.body, { childList: true, subtree: true });
+            obs.observe(document.body, { childList: true, subtree: true });
     });
 }
 
@@ -181,7 +181,7 @@ function buildTheme(isDark) {
         header: { backgroundColor: "#17191f", color: "#c5c8ce" },
         section: { backgroundColor: "#23252c", border: "1px solid #17191f", marginTop: "6px" },
         secHdr: { backgroundColor: "#17191f", backgroundImage: "-webkit-linear-gradient(#17191f,#17191f)", color: "#fff" },
-        btn: { background: "#1e2026", border: "1px solid #17191f", color: "#c5c8ce", cursor: "pointer" },
+        btn: { background: "#1e2026", border: "1px solid #17191f", color: "#c5c8ce", cursor: "pointer", flex: "0" },
         inp: { borderColor: "rgba(23, 25, 31, 0.8)", backgroundColor: "#17191f", color: "#c5c8ce" },
         label: { color: "#c5c8ce" },
         isBtn: { margin: "6px auto", width: "40%", },
@@ -196,7 +196,7 @@ function buildTheme(isDark) {
         header: { boxShadow: "0 5px 5px -4px rgba(0, 0, 0, 0.15) inset", color: "#fff", backgroundColor: "#2c2c2c", borderRadius: "3px 3px 0 0", backgroundImage: "-webkit-linear-gradient(top, #333, #222)" },
         section: { borderColor: "#fff", boxShadow: "0 0 5px #222", marginTop: "6px" },
         secHdr: { borderBottom: "1px solid #DDD", borderRadius: "3px 3px 0 0", backgroundImage: "-webkit-gradient(linear, 0 0, 0 100%, from(#fdfdfd), to(#ececec))", backgroundColor: "white", },
-        btn: { cursor: "pointer" },
+        btn: { cursor: "pointer", flex: "0", },
         inp: {},
         label: {},
         isBtn: { margin: "6px auto", width: "40%", },
@@ -564,6 +564,201 @@ const SITES = {
             }
         },
     },
+    // ── asyaanimeleri.top ──────────────────────────────────────────
+    asyaanimeleri: {
+        match() {
+            const result = window.location.hostname.includes("asyaanimeleri");
+            LOG(`[asyaanimeleri] match() → ${result} | hostname: ${window.location.hostname}`);
+            return result;
+        },
+        isDarkTheme: () => true,
+
+        // İzleme sayfası tespiti: sadece video sayfasında olan #pembed elementi
+        isWatchPage() {
+            const el = document.querySelector('.player-embed#pembed');
+            const result = !!el;
+            LOG(`[asyaanimeleri] isWatchPage() → ${result}`);
+            return result;
+        },
+
+        // Bu sitede çevirmen yok — doğrudan geç
+        async autoSelectTranslator(list) {
+            LOG(`[asyaanimeleri] Çevirmen desteği yok, atlanıyor`);
+        },
+
+        async autoSelectPlayer(list) {
+            LOG(`[asyaanimeleri] autoSelectPlayer() başladı | liste: ${JSON.stringify(list)}`);
+            LOG(`[asyaanimeleri] select.mirror bekleniyor...`);
+            const select = await waitForElmStable('select.mirror');
+            const options = [...select.options].filter(o => o.value); // boş "Player Seç" option'ını atla
+            LOG(`[asyaanimeleri] Player seçenekleri (${options.length} adet):`, options.map(o => o.text.trim()));
+            if (options.length === 0) { WARN('[asyaanimeleri] Hiç player seçeneği bulunamadı!'); return; }
+
+            for (const name of list) {
+                const match = options.find(o => normalizeStr(o.text.trim()) === normalizeStr(name));
+                if (match) {
+                    LOG(`[asyaanimeleri] Player eşleşti: "${name}" → seçiliyor`);
+                    select.value = match.value;
+                    // onchange handler'ı manuel tetikle (loadMi çağrısı için)
+                    select.dispatchEvent(new Event('change', { bubbles: true }));
+                    return;
+                }
+                WARN(`[asyaanimeleri] Player bulunamadı: "${name}"`);
+            }
+            // Eşleşme yok → ilk gerçek seçeneği seç
+            LOG(`[asyaanimeleri] Eşleşme yok → ilk seçenek: "${options[0].text.trim()}"`);
+            select.value = options[0].value;
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+        },
+
+        // nextSel/prevSel'deki post ID değişken olduğu için ID'siz generic selector
+        nextSel: '.naveps.bignav > div:nth-child(3) > a',
+        prevSel: '.naveps.bignav > div:nth-child(1) > a',
+
+        themeOverrides: {
+            activeBtn:  { backgroundColor: "#0074e4", color: "#fff", borderColor: "#005fb8" },
+            menu: {
+                backgroundColor: "#121212",
+                backgroundImage: "-webkit-gradient(linear, 0 0, 0 100%, from(#222), to(rgb(20 20 20)))",
+            },
+            header: {
+                backgroundColor: "#121212",
+            },
+            section: {
+                backgroundColor: "unset",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+            },
+            secHdr: {
+                backgroundImage: "unset",
+                backgroundColor: "#222",
+                borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
+            },
+            inp: {
+                backgroundColor: "#121212",
+            },
+            btn: {
+                backgroundColor: "#121212",
+            }
+        },
+    },
+    // ── openani.me ──────────────────────────────────────────────────
+    openanime: {
+        match() {
+            const result = window.location.hostname.includes("openani");
+            LOG(`[openanime] match() → ${result} | hostname: ${window.location.hostname}`);
+            return result;
+        },
+        isDarkTheme: () => true,
+
+        isWatchPage() {
+            const el = document.querySelector('.cinema-player');
+            const result = !!el;
+            LOG(`[openanime] isWatchPage() → ${result}`);
+            return result;
+        },
+
+        mountSelector: '.anime-metadata',
+
+        async autoSelectTranslator(list) {
+            LOG(`[openanime] autoSelectTranslator() başladı | liste: ${JSON.stringify(list)}`);
+            LOG(`[openanime] .fansubs butonları bekleniyor...`);
+            await waitForElmStable('.fansubs button');
+            const buttons = [...document.querySelectorAll('.fansubs button')];
+            LOG(`[openanime] Çevirmen butonları (${buttons.length} adet):`, buttons.map(b => b.textContent.trim()));
+            if (buttons.length === 0) { WARN('[openanime] Çevirmen butonu bulunamadı!'); return; }
+
+            const click = el => el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+
+            for (const name of list) {
+                const match = buttons.find(b => normalizeStr(b.textContent.trim()) === normalizeStr(name));
+                if (match) {
+                    LOG(`[openanime] Çevirmen eşleşti: "${name}" → tıklanıyor`);
+                    click(match);
+                    return;
+                }
+                WARN(`[openanime] Çevirmen bulunamadı: "${name}" | mevcut: ${buttons.map(b => b.textContent.trim()).join(', ')}`);
+            }
+            LOG(`[openanime] Eşleşme yok → ilk buton tıklanıyor: "${buttons[0]?.textContent.trim()}"`);
+            click(buttons[0]);
+        },
+
+        async autoSelectPlayer(list) {
+            LOG(`[openanime] Player desteği yok, atlanıyor`);
+        },
+
+        // Bölüm geçişi: .currentEpisode'un önceki/sonraki kardeş <a>'sına git
+        navigateNext() {
+            const current = document.querySelector('.player-episode-list-item.currentEpisode');
+            if (!current) { WARN('[openanime] Mevcut bölüm elementi bulunamadı'); return; }
+            const next = current.nextElementSibling;
+            if (next?.tagName === 'A') { LOG(`[openanime] Sonraki bölüm: ${next.href}`); next.click(); }
+            else WARN('[openanime] Sonraki bölüm yok (son bölüm)');
+        },
+        navigatePrev() {
+            const current = document.querySelector('.player-episode-list-item.currentEpisode');
+            if (!current) { WARN('[openanime] Mevcut bölüm elementi bulunamadı'); return; }
+            const prev = current.previousElementSibling;
+            if (prev?.tagName === 'A') { LOG(`[openanime] Önceki bölüm: ${prev.href}`); prev.click(); }
+            else WARN('[openanime] Önceki bölüm yok (ilk bölüm)');
+        },
+
+        themeOverrides: {
+            // Menü artık fixed değil; .more-videos içine inline oturuyor
+            menu: {
+                background: "#ffffff0d",
+                backgroundColor: "unset",
+                position: "relative",
+                bottom: "unset", right: "unset",
+                width: "100%", maxWidth: "unset",
+                minHeight: "200px",
+                border: "1px solid rgba(255, 255, 255, .1)",
+                boxShadow: "unset",
+                borderRadius: "4px",
+                marginTop: "8px",
+            },
+            menuScroll: {
+                display: "flex", justifyContent: "start", alignItems: "flex-start", position: "unset", padding: "16px 20px", gap: "15px",
+            },
+            isBtn: {
+                width: "10%",
+                margin: "0",
+                marginTop: "0",
+                fontFamily: "Inter, Helvetica Neue, sans-serif",
+            },
+            activeBtn:  { backgroundColor: "#62cdfee6", color: "#fff", borderColor: "#005fb8" },
+            passiveBtn: { backgroundColor: "#ffffff14", color: "#aaa", borderColor: "rgba(255,255,255,0.1)" },
+            section: {
+                marginTop: "0",
+                backgroundColor: "#ffffff0f",
+                border: "1px solid rgba(255, 255, 255, .1)",
+            },
+            secHdr: {
+                minWidth: "70px",
+                backgroundImage: "unset",
+                backgroundColor: "unset",
+                borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+                color: "#e5e1e6",
+                fontFamily: "Inter, Helvetica Neue, sans-serif",
+            },
+            header: {
+                padding: "20px 0",
+                backgroundColor: "unset",
+                borderBottom: "1px solid rgba(255, 255, 255, .08)",
+                fontFamily: "Inter, Helvetica Neue, sans-serif"
+            },
+            inp: {
+                backgroundColor: "rgba(255, 255, 255, 0.06)",
+                border: "1px solid rgba(255, 255, 255, .1)",
+                fontFamily: "Inter, Helvetica Neue, sans-serif",
+            },
+            btn: {
+                background: "rgba(255, 255, 255, 0.08)",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+                flex: "0.1",
+            },
+        },
+    },
+
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -594,7 +789,7 @@ function createInputList(theme, storageKey, defaultVal, label) {
     // Buton satırı — en üstte, inputlardan önce
     const btnRow = make('div', { display: "flex", gap: "6px", justifyContent: "center", marginBottom: "4px" });
 
-    const btnAdd = make('button', { ...theme.btn, flex: "0", borderRadius: "3px", fontFamily: "inherit" }, { text: "+" });
+    const btnAdd = make('button', { ...theme.btn, borderRadius: "3px", fontFamily: "inherit" }, { text: "+" });
     addHover(btnAdd, theme.hover, theme.normal);
     addClickFlash(btnAdd);
 
@@ -673,7 +868,7 @@ function createAyarlarPanel(theme) {
         const inp = make('input', { ...theme.inp, display: "block", margin: "0 auto 10px", cursor: "pointer", width: "85%" }, {
             type: "text", readOnly: true,
             value: keyLabel(getKey()),
-            title: "Değiştirmek için tıkla ve tuşa bas",
+                         title: "Değiştirmek için tıkla ve tuşa bas",
         });
         inp.addEventListener("click", () => {
             listeningInput = { inp, storageKey, setKey };
@@ -732,7 +927,7 @@ function createAyarlarPanel(theme) {
         const baseTheme = buildTheme(site.isDarkTheme());
         const theme = site.themeOverrides ? deepMerge(baseTheme, site.themeOverrides) : baseTheme;
 
-        const divMenu = make('div', { ...theme.menu, padding: "0" }, { id: "divMenu" });
+        const divMenu = make('div', { ...theme.menu, padding: "0", contain: "layout" }, { id: "divMenu" });
         const divHeader = make('div', {
             ...theme.header, width: "100%", height: "28px", display: "flex",
             alignItems: "center", justifyContent: "center", cursor: "pointer",
@@ -763,10 +958,10 @@ function createAyarlarPanel(theme) {
             menuOpen = !menuOpen;
             localStorage.setItem('TraHelper_menuOpen', menuOpen ? '1' : '0');
             divScroll.style.display = menuOpen ? scrollOpenDisplay : 'none';
-            
+
             // DÜZELTME BURADA: Boşluk ('') yerine temadaki orijinal yüksekliği geri veriyoruz
             divMenu.style.minHeight = menuOpen ? originalMinHeight : '0';
-            
+
             divMenu.style.height = menuOpen ? 'fit-content' : '28px';
             divHeader.textContent = menuOpen ? 'Türk Anime Yardımcısı ▼' : 'Türk Anime Yardımcısı ▶';
         };
@@ -804,6 +999,19 @@ function createAyarlarPanel(theme) {
             document.body.appendChild(divMenu);
         }
 
+        // iframe focus çalma engeli — sadece görünür video player iframe'lerinde
+        // focus geri al; slider içindeki opacity:0 resize-sensor iframe'lerini atla.
+        window.addEventListener('blur', () => {
+            setTimeout(() => {
+                const el = document.activeElement;
+                if (el?.tagName !== 'IFRAME') return;
+                const s = el.style;
+                // Görünmez utility iframe'leri (resize sensor, about:blank vb.) atla
+                if (s.opacity === '0' || s.pointerEvents === 'none' || el.src === 'about:blank') return;
+                window.focus();
+            }, 0);
+        });
+
         // Klavye Olayları (Önceki event listener'ı ezmemesi için isimsiz fonk kullanmıyoruz)
         document.addEventListener("keydown", e => {
             const listening = ayarlar.getListening();
@@ -817,8 +1025,13 @@ function createAyarlarPanel(theme) {
                 return;
             }
             if (!ayarlar.isNavActive()) return;
-            if (e.code === ayarlar.getNextKey() && site.nextSel) { waitForElm(site.nextSel).then(el => el.click()); }
-            else if (e.code === ayarlar.getPrevKey() && site.prevSel) { waitForElm(site.prevSel).then(el => el.click()); }
+            if (e.code === ayarlar.getNextKey()) {
+                if (site.navigateNext) site.navigateNext();
+                else if (site.nextSel) waitForElm(site.nextSel).then(el => el.click());
+            } else if (e.code === ayarlar.getPrevKey()) {
+                if (site.navigatePrev) site.navigatePrev();
+                else if (site.prevSel) waitForElm(site.prevSel).then(el => el.click());
+            }
         }, true);
 
         // Otomatik seçim işlemleri
@@ -847,22 +1060,22 @@ function createAyarlarPanel(theme) {
         if (currentInjectedUrl !== currentUrl || !existingMenu) {
             isInjecting = true; // KİLİDİ KAPAT (Başka kurulum isteklerini engelle)
 
-            if (existingMenu) existingMenu.remove(); // Varsa kalıntıları temizle
-            currentInjectedUrl = currentUrl;
+if (existingMenu) existingMenu.remove(); // Varsa kalıntıları temizle
+currentInjectedUrl = currentUrl;
 
-            // Site framework'ünün sayfayı oluşturmasına kısa bir süre tanı
-            setTimeout(async () => {
-                try {
-                    // Ekstra Güvenlik: Aynı anda iki tane oluşmaması için tekrar kontrol et
-                    if (!document.getElementById('divMenu')) {
-                        await injectMenuAndRun(site);
-                    }
-                } catch (error) {
-                    console.error("[TraHelper] Menü kurulumunda hata:", error);
-                } finally {
-                    isInjecting = false; // KİLİDİ AÇ (İşlem tamamen bitti, yeni değişiklikleri dinleyebilirsin)
-                }
-            }, 500);
+// Site framework'ünün sayfayı oluşturmasına kısa bir süre tanı
+setTimeout(async () => {
+    try {
+        // Ekstra Güvenlik: Aynı anda iki tane oluşmaması için tekrar kontrol et
+        if (!document.getElementById('divMenu')) {
+            await injectMenuAndRun(site);
+        }
+    } catch (error) {
+        console.error("[TraHelper] Menü kurulumunda hata:", error);
+    } finally {
+        isInjecting = false; // KİLİDİ AÇ (İşlem tamamen bitti, yeni değişiklikleri dinleyebilirsin)
+    }
+}, 500);
         }
     }
 
