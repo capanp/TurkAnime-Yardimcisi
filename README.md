@@ -15,3 +15,8 @@ Türk anime izleme platformlarını geliştiren tarayıcı eklentisi.
 - [Anizm](https://anizm.net/)
 - [AnimeciX](https://animecix.tv/)
 - [Asya Animeleri](https://asyaanimeleri.top/)
+
+**Resimler**
+<img width="640" height="400" alt="unnamed (2)" src="https://github.com/user-attachments/assets/ed95ae0b-73fa-437f-9823-f09ebee3f613" />
+<img width="640" height="400" alt="unnamed (1)" src="https://github.com/user-attachments/assets/d90c3586-0a3a-4d83-b204-0ede6f6c378f" />
+<img width="640" height="400" alt="unnamed" src="https://github.com/user-attachments/assets/a0bccd13-0923-450e-b2fa-eddfce3da398" />
