@@ -29,7 +29,6 @@ function waitForElm(selector) {
     });
 }
 
-// localStorage'dan güvenli şekilde array oku (JSON veya virgüllü string)
 function safeJsonArray(raw, fallback) {
     if (!raw) return [...fallback];
     try {
@@ -40,7 +39,6 @@ function safeJsonArray(raw, fallback) {
     }
 }
 
-// Element oluşturma kısayolu
 function make(tag, styles = {}, attrs = {}) {
     const e = document.createElement(tag);
     Object.assign(e.style, styles);
@@ -51,8 +49,6 @@ function make(tag, styles = {}, attrs = {}) {
         return e;
 }
 
-// Elementi bekle VE DOM değişimleri quietMs boyunca duruncaya kadar bekle.
-// Event listener'ların bağlanması için waitForIdle'dan çok daha güvenilir.
 function waitForElmStable(selector, quietMs = 150) {
     return new Promise(resolve => {
         let timer = null;
@@ -73,10 +69,6 @@ function waitForElmStable(selector, quietMs = 150) {
     });
 }
 
-// Elementi bekle, ama her zaman en az bir DOM değişimi gerçekleşene kadar bekle.
-// waitForElmStable'dan farkı: eleman zaten varken çağrılsa bile, DOM mutation
-// gerçekleşene dek resolve etmez. Translator click sonrası player DOM'u
-// yeniden oluşana kadar beklemek için idealdir.
 function waitForMutationThenStable(selector, quietMs = 400, timeoutMs = 8000) {
     return new Promise(resolve => {
         let timer = null;
@@ -87,14 +79,13 @@ function waitForMutationThenStable(selector, quietMs = 400, timeoutMs = 8000) {
                 clearTimeout(timer);
                 timer = setTimeout(() => { obs.disconnect(); resolve(el); }, quietMs);
             } else {
-                clearTimeout(timer); // Element kayboldu, timer'ı sıfırla
+                clearTimeout(timer);
             }
         };
 
         const obs = new MutationObserver(check);
         obs.observe(document.body, { childList: true, subtree: true });
 
-        // Güvenlik timeout'u
         setTimeout(() => {
             obs.disconnect();
             resolve(document.querySelector(selector));
@@ -102,20 +93,15 @@ function waitForMutationThenStable(selector, quietMs = 400, timeoutMs = 8000) {
     });
 }
 
-// Büyük/küçük harf normalizasyonu — Türkçe İ/I sorunu için.
-// "MERDİVEN6".toLowerCase() → "merdi̇ven6" (i + U+0307 combining dot) olur,
-// saklanan "merdiven6" ile eşleşmez. NFD + combining strip ile düzeltiyoruz.
 function normalizeStr(s) {
     return String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 }
 
-// Hover renk geçişi ekle
 function addHover(elem, hoverColor, normalColor) {
     elem.addEventListener("mouseenter", () => elem.style.color = hoverColor);
     elem.addEventListener("mouseleave", () => elem.style.color = normalColor);
 }
 
-// Tıklama feedback'i — kısa bir yeşil parıltı
 function addClickFlash(elem) {
     elem.addEventListener("mousedown", () => {
         const prev = elem.style.backgroundColor;
@@ -130,9 +116,6 @@ function addClickFlash(elem) {
     });
 }
 
-// İki objeyi derin birleştirir (sadece plain object'ler için).
-// Siteye özel tema override'larını base tema üzerine uygulamak için kullanılır.
-// Örnek: deepMerge({ a: { x: 1, y: 2 } }, { a: { y: 9 } }) → { a: { x: 1, y: 9 } }
 function deepMerge(base, overrides) {
     const result = { ...base };
     for (const key of Object.keys(overrides)) {
@@ -152,11 +135,11 @@ function deepMerge(base, overrides) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  TEMA — tüm renkler tek yerde
+//  TEMA
 // ═══════════════════════════════════════════════════════════════════
 
 function buildTheme(isDark) {
-    // Menünün sorunsuz uzaması ve sitelerin CSS'inden etkilenmemesi için temel kalıp
+
     const baseMenu = {
         position: "fixed",
         bottom: "150px",
@@ -165,10 +148,10 @@ function buildTheme(isDark) {
         minWidth: "160px",
         maxWidth: "200px",
         minHeight: "430px",
-        height: "fit-content", // KUTUNUN AŞAĞI UZAMASINI SAĞLAYAN ANAHTAR
+        height: "fit-content",
         display: "flex",
         justifyContent: "start",
-        flexDirection: "column", // İÇERİĞİ ALT ALTA DİZER
+        flexDirection: "column",
         zIndex: "2032",
         borderRadius: "4px",
         boxSizing: "border-box",
@@ -279,7 +262,6 @@ const SITES = {
             console.log(el, "style", getComputedStyle(el).backgroundColor)
             return !el || getComputedStyle(el).backgroundColor !== "rgb(237, 239, 244)";
         },
-        // İzleme sayfası tespiti: URL değil, sadece izleme sayfasında olan element
         isWatchPage() {
             const el = document.querySelector('.videoSource-items, #sourceList');
             const result = !!el;
@@ -288,7 +270,6 @@ const SITES = {
         },
         async autoSelectTranslator(list) {
             LOG(`[tranimeizle] autoSelectTranslator() başladı | liste: ${JSON.stringify(list)}`);
-            // .playlist-title birden fazla var; direkt .fansubSelector'ı bekle
             LOG(`[tranimeizle] .fansubSelector elementi bekleniyor...`);
             await waitForElmStable('.fansubSelector');
             const buttons = [...document.querySelectorAll('.fansubSelector')];
@@ -306,7 +287,6 @@ const SITES = {
             LOG(`[tranimeizle] autoSelectPlayer() başladı | liste: ${JSON.stringify(list)}`);
             LOG(`[tranimeizle] .sourceBtn öğelerinin yüklenmesi bekleniyor...`);
 
-            // DÜZELTME BURADA: Sadece boş kutuyu değil, kutunun içindeki butonun oluşmasını bekle
             await waitForElmStable('#sourceList .sourceBtn');
 
             const container = document.querySelector('#sourceList');
@@ -341,10 +321,9 @@ const SITES = {
             LOG(`[anizm] match() → ${result} | hostname: ${window.location.hostname}`);
             return result;
         },
-        isDarkTheme: () => true, // Sadece karanlık tema istediğin için her zaman true dönüyoruz
+        isDarkTheme: () => true,
 
         isWatchPage() {
-            // Sadece video izleme sayfasında olan ana iframe kapsayıcısını arıyoruz
             const el = document.querySelector('.episodePlayerContent');
             const result = !!el;
             LOG(`[anizm] isWatchPage() → ${result} | bulunan element: ${el ? el.className : 'YOK'}`);
@@ -355,21 +334,16 @@ const SITES = {
             LOG(`[anizm] autoSelectTranslator() başladı | liste: ${JSON.stringify(list)}`);
             LOG(`[anizm] .episodeTranslators içindeki butonlar bekleniyor...`);
 
-            // Çevirmen butonlarının sayfaya yüklenmesini bekle
             await waitForElmStable('.episodeTranslators a[data-translatorclick]');
             const buttons = [...document.querySelectorAll('.episodeTranslators a[data-translatorclick]')];
 
             LOG(`[anizm] Çevirmen butonları (${buttons.length} adet):`, buttons.map(b => b.textContent.trim()));
             if (buttons.length === 0) { WARN('[anizm] Çevirmen butonu bulunamadı!'); return; }
 
-            // Frameworkleri kandırmak için gerçekçi tıklama
             const gercekciTiklama = (element) => {
                 element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
             };
 
-            // Tıklandıktan sonra player DOM'unun yeniden oluşmasını bekleyen yardımcı.
-            // Translator click → site AJAX ile player listesini yıkıp yeniden kurar;
-            // autoSelectPlayer bu rebuild bitmeden çalışmamalı.
             const waitForPlayerRebuild = () => {
                 LOG(`[anizm] Player DOM rebuild bekleniyor...`);
                 return waitForMutationThenStable('.episodePlayers .videoPlayerButtons', 400, 8000);
@@ -396,15 +370,12 @@ const SITES = {
             LOG(`[anizm] autoSelectPlayer() başladı | liste: ${JSON.stringify(list)}`);
             LOG(`[anizm] .videoPlayerButtons bekleniyor...`);
 
-            // autoSelectTranslator zaten player DOM rebuild'ini bekledi ve döndü;
-            // burada DOM zaten stabil olmalı. waitForElmStable güvenlik ağı olarak kalıyor.
             await waitForElmStable('.episodePlayers .videoPlayerButtons', 200);
             const buttons = [...document.querySelectorAll('.episodePlayers .videoPlayerButtons')];
 
             LOG(`[anizm] Player butonları (${buttons.length} adet):`, buttons.map(b => b.textContent.trim()));
             if (buttons.length === 0) { WARN('[anizm] Player butonu bulunamadı!'); return; }
 
-            // Frameworkleri kandırmak için gerçekçi tıklama
             const gercekciTiklama = (element) => {
                 element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
             };
@@ -425,18 +396,13 @@ const SITES = {
         nextSel: "#pageContent > div.ui.container.episodeContainer > div.anizm_columns.anizm_fullWidth.mt-4.anizm_mobile.episodeInfoContainer > div.anizm_column.animeIzleInnerContainer > div.mb-3 > div:nth-child(3) > a.anizm_button.default.mini.puf_02",
         prevSel: "#pageContent > div.ui.container.episodeContainer > div.anizm_columns.anizm_fullWidth.mt-4.anizm_mobile.episodeInfoContainer > div.anizm_column.animeIzleInnerContainer > div.mb-3 > div:nth-child(3) > a:nth-child(1)",
 
-        // Siteye özel tema override'ları — sadece değiştirmek istediğin anahtarları yaz.
-        // Yazılmayan anahtarlar buildTheme(isDarkTheme()) çıktısından gelir.
-        // Bu bloğu tamamen silerek ya da themeOverrides'ı kaldırarak varsayılan temaya dönebilirsin.
         themeOverrides: {
-            // Örnek: anizm'in koyu arka planına uyan özel renkler
             menu: { backgroundImage: "-webkit-gradient(linear, 0 0, 0 100%, from(#2a2a2a), to(#1e1e1e))", backgroundColor: "#1e1e1e", border: "" },
             header: { backgroundColor: "#1e1e1e", color: "#e0e3ea" },
             section: { backgroundColor: "#2a2a2a", border: "" },
             secHdr: { backgroundImage: "#1e1e1e", backgroundColor: "#1e1e1e", color: "#fff" },
             inp: { borderColor: "rgba(30, 30, 30, 0.8)", backgroundColor: "rgb(30, 30, 30)", color: "#675f5f" },
             btn: { backgroundColor: "#1e1e1e", borderColor: "rgba(30, 30, 30, 0.8)" }
-            // hover: "#ffffff", normal: "#b0b4be",
         },
     },
 
@@ -449,15 +415,12 @@ const SITES = {
         },
         isDarkTheme: () => true,
 
-        // URL /titles/.../episode/N formatındaysa izleme sayfasıdır.
-        // .more-videos elementi SPA nedeniyle sonradan gelir; URL yeterli.
         isWatchPage() {
             const result = /\/titles\/.*\/episode\//.test(window.location.pathname);
             LOG(`[animecix] isWatchPage() → ${result} | path: ${window.location.pathname}`);
             return result;
         },
 
-        // Menüyü document.body'ye değil bu selectora bağla
         mountSelector: '.more-videos',
 
         async autoSelectTranslator(list) {
@@ -476,14 +439,11 @@ const SITES = {
                 if (match) {
                     LOG(`[animecix] Çevirmen eşleşti: "${name}" → tıklanıyor`);
                     click(match);
-                    // Translator tıklanınca player listesi yeniden oluşur — bekle
                     await waitForMutationThenStable('.video-card', 300, 6000);
                     return;
                 }
                 WARN(`[animecix] Çevirmen bulunamadı: "${name}" | mevcut: ${buttons.map(getName).join(', ')}`);
             }
-            // LOG(`[animecix] Eşleşme yok → ilk buton tıklanıyor: "${getName(buttons[0])}"`);
-            // click(buttons[0]);
             await waitForMutationThenStable('.video-card', 300, 6000);
         },
 
@@ -511,7 +471,6 @@ const SITES = {
         prevSel: '#cdk-overlay-3 > player > mat-sidenav-container > mat-sidenav-content > div.player-bottom.container > div.bottom-details > div.buttons > app-button:nth-child(4)',
 
         themeOverrides: {
-            // Menü artık fixed değil; .more-videos içine inline oturuyor
             menu: {
                 background: "#ffffff0d",
                 backgroundColor: "unset",
@@ -573,7 +532,6 @@ const SITES = {
         },
         isDarkTheme: () => true,
 
-        // İzleme sayfası tespiti: sadece video sayfasında olan #pembed elementi
         isWatchPage() {
             const el = document.querySelector('.player-embed#pembed');
             const result = !!el;
@@ -581,7 +539,6 @@ const SITES = {
             return result;
         },
 
-        // Bu sitede çevirmen yok — doğrudan geç
         async autoSelectTranslator(list) {
             LOG(`[asyaanimeleri] Çevirmen desteği yok, atlanıyor`);
         },
@@ -599,19 +556,16 @@ const SITES = {
                 if (match) {
                     LOG(`[asyaanimeleri] Player eşleşti: "${name}" → seçiliyor`);
                     select.value = match.value;
-                    // onchange handler'ı manuel tetikle (loadMi çağrısı için)
                     select.dispatchEvent(new Event('change', { bubbles: true }));
                     return;
                 }
                 WARN(`[asyaanimeleri] Player bulunamadı: "${name}"`);
             }
-            // Eşleşme yok → ilk gerçek seçeneği seç
             LOG(`[asyaanimeleri] Eşleşme yok → ilk seçenek: "${options[0].text.trim()}"`);
             select.value = options[0].value;
             select.dispatchEvent(new Event('change', { bubbles: true }));
         },
 
-        // nextSel/prevSel'deki post ID değişken olduğu için ID'siz generic selector
         nextSel: '.naveps.bignav > div:nth-child(3) > a',
         prevSel: '.naveps.bignav > div:nth-child(1) > a',
 
@@ -686,7 +640,6 @@ const SITES = {
             LOG(`[openanime] Player desteği yok, atlanıyor`);
         },
 
-        // Bölüm geçişi: .currentEpisode'un önceki/sonraki kardeş <a>'sına git
         navigateNext() {
             const current = document.querySelector('.player-episode-list-item.currentEpisode');
             if (!current) { WARN('[openanime] Mevcut bölüm elementi bulunamadı'); return; }
@@ -703,7 +656,6 @@ const SITES = {
         },
 
         themeOverrides: {
-            // Menü artık fixed değil; .more-videos içine inline oturuyor
             menu: {
                 background: "#ffffff0d",
                 backgroundColor: "unset",
@@ -765,7 +717,6 @@ const SITES = {
 //  UI YARDIMCI FONKSİYONLARI
 // ═══════════════════════════════════════════════════════════════════
 
-// Başlık + içerik alanı olan panel bölümü oluştur
 function createSection(theme, title) {
     const wrap = make('div', { ...theme.section, borderRadius: "3px", overflow: "hidden" });
     const hdr = make('div', {
@@ -780,13 +731,11 @@ function createSection(theme, title) {
     return { wrap, hdr, body };
 }
 
-// + / Kaydet butonlu input listesi — Player veya Çevirmen için
 function createInputList(theme, storageKey, defaultVal, label) {
     const { wrap, body } = createSection(theme, label + " Sırası");
     const savedList = safeJsonArray(localStorage.getItem(storageKey), [defaultVal]);
     let inputCount = 0;
 
-    // Buton satırı — en üstte, inputlardan önce
     const btnRow = make('div', { display: "flex", gap: "6px", justifyContent: "center", marginBottom: "4px" });
 
     const btnAdd = make('button', { ...theme.btn, borderRadius: "3px", fontFamily: "inherit" }, { text: "+" });
@@ -802,7 +751,6 @@ function createInputList(theme, storageKey, defaultVal, label) {
     btnRow.appendChild(btnSave);
     body.appendChild(btnRow);
 
-    // Input alanları — buton satırının altında
     const inputArea = make('div');
     body.appendChild(inputArea);
 
@@ -839,7 +787,6 @@ function createInputList(theme, storageKey, defaultVal, label) {
     return wrap;
 }
 
-// Ayarlar paneli — tuş atama + kısayol aktif/pasif
 function createAyarlarPanel(theme) {
     const { wrap, hdr, body } = createSection(theme, "Ayarlar ▼");
     const content = make('div', { display: "none" });
@@ -883,7 +830,6 @@ function createAyarlarPanel(theme) {
     makeKeyInput("Sonraki Bölüm Tuşu", () => savedNextKey, v => { savedNextKey = v; }, "NextKey");
     makeKeyInput("Önceki Bölüm Tuşu", () => savedPrevKey, v => { savedPrevKey = v; }, "PrevKey");
 
-    // Kısayol aktif/pasif
     const row = make('div', { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "2px 4px 8px" });
     const rowLabel = make('span', { ...theme.label, fontSize: "12px" }, { text: "Bölüm Kısayolu" });
     const btnToggle = make('button', {});
@@ -910,7 +856,7 @@ function createAyarlarPanel(theme) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  ANA KOD (SPA Uyumlu)
+//  ANA KOD
 // ═══════════════════════════════════════════════════════════════════
 
 (async () => {
@@ -918,9 +864,8 @@ function createAyarlarPanel(theme) {
     const aktif = await getPermission();
     if (!aktif) return;
 
-    let currentInjectedUrl = null; // Menünün hangi bölümde eklendiğini takip etmek için
+    let currentInjectedUrl = null;
 
-    // Menüyü oluşturup siteye enjekte eden asıl fonksiyon
     async function injectMenuAndRun(site) {
         LOG(`[${site.match.name || 'Site'}] İzleme sayfası algılandı → menü kuruluyor...`);
 
@@ -939,14 +884,11 @@ function createAyarlarPanel(theme) {
             ...theme.menuScroll, overflowY: "auto", flex: "1",
         }, { id: "divMenuScroll" });
 
-        // localStorage'dan önceki durumu oku (varsayılan: açık)
         let menuOpen = localStorage.getItem('TraHelper_menuOpen') !== '0';
 
-        // ÇÖZÜM: Orijinal değerleri temanın kendisinden okuyup güvene alıyoruz
         const scrollOpenDisplay = theme.menuScroll.display || 'block';
         const originalMinHeight = theme.menu.minHeight || '430px';
 
-        // Başlangıç durumunu uygula (sayfa yüklendiğinde kapalıysa gizle)
         if (!menuOpen) {
             divScroll.style.display = 'none';
             divMenu.style.minHeight = '0';
@@ -959,7 +901,6 @@ function createAyarlarPanel(theme) {
             localStorage.setItem('TraHelper_menuOpen', menuOpen ? '1' : '0');
             divScroll.style.display = menuOpen ? scrollOpenDisplay : 'none';
 
-            // DÜZELTME BURADA: Boşluk ('') yerine temadaki orijinal yüksekliği geri veriyoruz
             divMenu.style.minHeight = menuOpen ? originalMinHeight : '0';
 
             divMenu.style.height = menuOpen ? 'fit-content' : '28px';
@@ -989,7 +930,6 @@ function createAyarlarPanel(theme) {
         const ayarlar = createAyarlarPanel(theme);
         divScroll.appendChild(ayarlar.wrap);
 
-        // Menüyü siteye bağla
         if (site.mountSelector) {
             LOG(`Menü "${site.mountSelector}" elementine bekleniyor...`);
             const mountTarget = await waitForElmStable(site.mountSelector, 200);
@@ -999,20 +939,16 @@ function createAyarlarPanel(theme) {
             document.body.appendChild(divMenu);
         }
 
-        // iframe focus çalma engeli — sadece görünür video player iframe'lerinde
-        // focus geri al; slider içindeki opacity:0 resize-sensor iframe'lerini atla.
         window.addEventListener('blur', () => {
             setTimeout(() => {
                 const el = document.activeElement;
                 if (el?.tagName !== 'IFRAME') return;
                 const s = el.style;
-                // Görünmez utility iframe'leri (resize sensor, about:blank vb.) atla
                 if (s.opacity === '0' || s.pointerEvents === 'none' || el.src === 'about:blank') return;
                 window.focus();
             }, 0);
         });
 
-        // Klavye Olayları (Önceki event listener'ı ezmemesi için isimsiz fonk kullanmıyoruz)
         document.addEventListener("keydown", e => {
             const listening = ayarlar.getListening();
             if (listening) {
@@ -1034,7 +970,6 @@ function createAyarlarPanel(theme) {
             }
         }, true);
 
-        // Otomatik seçim işlemleri
         const vpList = safeJsonArray(localStorage.getItem("Videoplayers"), ["sibnet"]);
         const tlList = safeJsonArray(localStorage.getItem("Translators"), ["adonis"]);
         await site.autoSelectTranslator(tlList);
@@ -1042,47 +977,42 @@ function createAyarlarPanel(theme) {
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    // SPA Bekçisi (Observer): Sayfa değişimlerini ve DOM'u sürekli kontrol eder
+    // Observer
     // ═══════════════════════════════════════════════════════════════════
 
-    let isInjecting = false; // KİLİT: Sonsuz döngüyü engeller
+    let isInjecting = false;
 
     async function checkState() {
-        if (isInjecting) return; // Eğer şu an menü kurulum aşamasındaysa, diğer tüm bildirimleri yoksay!
+        if (isInjecting) return;
 
         const site = Object.values(SITES).find(s => s.match());
-        if (!site || !site.isWatchPage()) return; // İzleme sayfasında değilsek bir şey yapma
+        if (!site || !site.isWatchPage()) return;
 
         const currentUrl = window.location.href;
         const existingMenu = document.getElementById('divMenu');
 
-        // Eğer yeni bir bölüme geçildiyse VEYA site menümüzü DOM'dan sildiyse yeniden kur
         if (currentInjectedUrl !== currentUrl || !existingMenu) {
-            isInjecting = true; // KİLİDİ KAPAT (Başka kurulum isteklerini engelle)
+            isInjecting = true;
 
-if (existingMenu) existingMenu.remove(); // Varsa kalıntıları temizle
+if (existingMenu) existingMenu.remove();
 currentInjectedUrl = currentUrl;
 
-// Site framework'ünün sayfayı oluşturmasına kısa bir süre tanı
 setTimeout(async () => {
     try {
-        // Ekstra Güvenlik: Aynı anda iki tane oluşmaması için tekrar kontrol et
         if (!document.getElementById('divMenu')) {
             await injectMenuAndRun(site);
         }
     } catch (error) {
         console.error("[TraHelper] Menü kurulumunda hata:", error);
     } finally {
-        isInjecting = false; // KİLİDİ AÇ (İşlem tamamen bitti, yeni değişiklikleri dinleyebilirsin)
+        isInjecting = false;
     }
 }, 500);
         }
     }
 
-    // İlk açılışta kontrol et
     checkState();
 
-    // Site içinde dolaşırken (SPA Navigation) değişiklikleri yakalamak için Observer
     const spaObserver = new MutationObserver(() => checkState());
     spaObserver.observe(document.body, { childList: true, subtree: true });
 

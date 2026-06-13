@@ -17,13 +17,11 @@ function setUI(isActive) {
     }
 }
 
-// Mevcut durumu yükle
 storage.local.get(['aktiflikDurumu'], result => {
     const isActive = result.aktiflikDurumu == null ? true : !!result.aktiflikDurumu;
     setUI(isActive);
 });
 
-// Tıklanınca toggle
 btn.addEventListener('click', () => {
     storage.local.get(['aktiflikDurumu'], result => {
         const current = result.aktiflikDurumu == null ? 1 : result.aktiflikDurumu;
