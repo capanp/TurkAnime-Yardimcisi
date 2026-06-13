@@ -3,7 +3,7 @@
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/iebihkhjnleedpmpdpcplimgjbodmjec?style=flat-square)](https://chromewebstore.google.com/detail/t%C3%BCrkanime-yard%C4%B1mc%C4%B1s%C4%B1/iebihkhjnleedpmpdpcplimgjbodmjec)
 [![License](https://img.shields.io/github/license/capanp/TurkAnime-Yardimcisi?style=flat-square)](LICENSE)
 
-**Türk Anime Yardımcısı**, Türk popüler anime izleme platformlarının kullanışlılığını geliştiren, açık kaynaklı tarayıcı eklentisi.
+**Türk Anime Yardımcısı**, Popüler Türk anime izleme platformlarının kullanışlılığını geliştiren, açık kaynaklı tarayıcı eklentisi.
 
 [⬇️ Chrome Web Mağazası İndirme Linki](https://chromewebstore.google.com/detail/t%C3%BCrkanime-yard%C4%B1mc%C4%B1s%C4%B1/iebihkhjnleedpmpdpcplimgjbodmjec)
 
