@@ -34,6 +34,9 @@ Eklenti, aşağıdaki popüler anime platformlarında aktif bir şekilde çalı�
 | **AnimeciX** | [animecix.tv](https://animecix.tv/) |
 | **Asya Animeleri** | [asyaanimeleri.top](https://asyaanimeleri.top/) |
 
+> [!NOTE]
+> Aynı zamanda bu sitelerin diğer alan adları da desteklenmektedir. `anizle.net`, `mangacix.net`, `puffytr.com` vb.
+
 ---
 
 ## 🛠️ Kurulum
@@ -51,8 +54,8 @@ Eğer kaynak kodunu yerel olarak çalıştırmak veya test etmek isterseniz:
 
 ## 🖼️ Resimler
 
-<img width="640" height="400" alt="unnamed (1)" src="https://github.com/user-attachments/assets/d90c3586-0a3a-4d83-b204-0ede6f6c378f" />
+<img width="640" height="400" alt="animecix ekran görüntüsü" src="https://github.com/user-attachments/assets/d90c3586-0a3a-4d83-b204-0ede6f6c378f" />
 
-<img width="640" height="400" alt="unnamed" src="https://github.com/user-attachments/assets/a0bccd13-0923-450e-b2fa-eddfce3da398" />
+<img width="640" height="400" alt="tema desteği" src="https://github.com/user-attachments/assets/a0bccd13-0923-450e-b2fa-eddfce3da398" />
 
-<img width="640" height="400" alt="unnamed (2)" src="https://github.com/user-attachments/assets/ed95ae0b-73fa-437f-9823-f09ebee3f613" />
+<img width="640" height="400" alt="enjekte edilen pencerecik" src="https://github.com/user-attachments/assets/ed95ae0b-73fa-437f-9823-f09ebee3f613" />

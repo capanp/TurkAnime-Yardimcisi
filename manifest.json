@@ -2,7 +2,7 @@
     "manifest_version": 3,
     "name": "TürkAnime Yardımcısı",
     "description": "Türk anime izleme platformlarını geliştiren bir tarayıcı eklentisi.",
-    "version": "4.2",
+    "version": "4.3",
     "icons": {
         "16":"/icons/16px.png",
         "48":"/icons/48px.png",
@@ -24,10 +24,44 @@
                 "https://*.turkanime.net/*",
                 "https://*.turkanime.org/*",
                 "https://*.turkanime.tv/*",
+
+
                 "https://*.tranimeizle.io/*",
+
+
                 "https://*.anizm.net/*",
+                "https://*.anizm.tv/*",
+                "https://*.anizm.com/*",
+                "https://*.anizm.pro/*",
+                "https://*.anizm.com.tr/*",
+
+                "https://*.anizle.net/*",
+                "https://*.anizle.com/*",
+                "https://*.anizle.com.tr/*",
+                "https://*.anizle.pro/*",
+                "https://*.anizle.tv/*",
+
+                "https://*.puffytr.net/*",
+                "https://*.puffytr.com/*",
+                "https://*.puffytr.tv/*",
+                "https://*.puffytr.com.tr/*",
+                "https://*.puffytr.pro/*",
+
+
                 "https://*.animecix.tv/*",
+                "https://*.animecix.net/*",
+                "https://*.animecix.com/*",
+                "https://*.ecchicix.tv/*",
+                "https://*.ecchicix.net/*",
+                "https://*.ecchicix.com/*",
+                "https://*.mangacix.tv/*",
+                "https://*.mangacix.net/*",
+                "https://*.mangacix.com/*",
+
+
                 "https://asyaanimeleri.top/*",
+
+
                 "https://openani.me/*"
             ],
             "css": ["./css/trahelper.css"],
