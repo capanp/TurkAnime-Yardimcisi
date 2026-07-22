@@ -317,7 +317,7 @@ const SITES = {
     // ── anizm.net ───────────────────────────────────────────────────
     anizm: {
         match() {
-            const result = window.location.hostname.includes("anizm");
+            const result = ["anizm", "puffytr", "anizle"].some(hostname => window.location.hostname.includes(hostname));
             LOG(`[anizm] match() → ${result} | hostname: ${window.location.hostname}`);
             return result;
         },
@@ -409,7 +409,7 @@ const SITES = {
     // ── animecix.tv ─────────────────────────────────────────────────
     animecix: {
         match() {
-            const result = window.location.hostname.includes("animecix");
+            const result = ["animecix", "ecchicix", "mangacix"].some(hostname => window.location.hostname.includes(hostname));
             LOG(`[animecix] match() → ${result} | hostname: ${window.location.hostname}`);
             return result;
         },
